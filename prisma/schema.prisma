@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Producto {
+  id          Int              @id @default(autoincrement())
+  nombre      String
+  descripcion String?
+  precio      Float
+  stock       Int              @default(0)
+  imagenUrl   String?          // Mantener por compatibilidad
+  imagenes    ProductoImagen[]
+  carrito     CarritoItem[]
+  estado      String           @default("disponible") // disponible, reservado, vendido
+  reservadoEn DateTime?        @map("reservado_en") // Timestamp cuando se dio click en Pagar
+  compradorInfo String?        @map("comprador_info") // Info del comprador (nombre, contacto, etc)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([estado]) // Índice para filtrar por estado
+  @@index([createdAt]) // Índice para ordenar por fecha
+  @@map("productos")
+}
+
+model ProductoImagen {
+  id             Int      @id @default(autoincrement())
+  productoId     Int
+  url            String
+  esPrincipal    Boolean  @default(false)
+  orden          Int      @default(0)
+  createdAt      DateTime @default(now())
+  
+  producto       Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@index([productoId]) // Índice para búsquedas por producto
+  @@index([esPrincipal]) // Índice para filtrar imagen principal
+  @@map("producto_imagenes")
+}
+
+model CarritoItem {
+  id             Int      @id @default(autoincrement())
+  productoId     Int      @map("producto_id")
+  sessionId      String?  @map("session_id") // UUID del navegador/dispositivo para usuarios anónimos
+  cantidad       Int      @default(1)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  
+  producto       Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@index([productoId]) // Índice para búsquedas por producto
+  @@index([sessionId]) // Índice para búsquedas por sesión
+  @@unique([productoId, sessionId]) // Evitar duplicados - un producto solo puede estar una vez por sesión
+  @@map("carrito_items")
+}
