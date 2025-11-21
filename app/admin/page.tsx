@@ -7,6 +7,8 @@ import Image from 'next/image'
 import { CldUploadWidget } from 'next-cloudinary'
 import { User } from '@supabase/supabase-js'
 import Spinner from '../components/Spinner'
+import Alert from '../components/Alert'
+import Confirm from '../components/Confirm'
 
 interface ProductoImagen {
   id?: number
@@ -34,6 +36,8 @@ export default function AdminPage() {
   const [guardando, setGuardando] = useState(false)
   const [editandoId, setEditandoId] = useState<number | null>(null)
   const [eliminandoId, setEliminandoId] = useState<number | null>(null)
+  const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
+  const [confirmConfig, setConfirmConfig] = useState<{ show: boolean; message: string; onConfirm: () => void; title?: string } | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -210,29 +214,55 @@ export default function AdminPage() {
 
       resetForm()
       fetchProductos()
+      setAlertConfig({
+        show: true,
+        message: editingId ? 'Producto actualizado exitosamente' : 'Producto creado exitosamente',
+        type: 'success'
+      })
     } catch (error) {
       console.error('Error al guardar producto:', error)
-      alert('Error al guardar el producto')
+      setAlertConfig({
+        show: true,
+        message: 'Error al guardar el producto',
+        type: 'error',
+        title: 'Error'
+      })
     } finally {
       setGuardando(false)
     }
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de eliminar este producto?')) return
-
-    setEliminandoId(id)
-    try {
-      await fetch(`/api/productos/${id}`, {
-        method: 'DELETE',
-      })
-      fetchProductos()
-    } catch (error) {
-      console.error('Error al eliminar producto:', error)
-      alert('Error al eliminar el producto')
-    } finally {
-      setEliminandoId(null)
-    }
+    setConfirmConfig({
+      show: true,
+      message: 'Esta acción no se puede deshacer',
+      title: '¿Eliminar producto?',
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setEliminandoId(id)
+        try {
+          await fetch(`/api/productos/${id}`, {
+            method: 'DELETE',
+          })
+          fetchProductos()
+          setAlertConfig({
+            show: true,
+            message: 'Producto eliminado exitosamente',
+            type: 'success'
+          })
+        } catch (error) {
+          console.error('Error al eliminar producto:', error)
+          setAlertConfig({
+            show: true,
+            message: 'Error al eliminar el producto',
+            type: 'error',
+            title: 'Error'
+          })
+        } finally {
+          setEliminandoId(null)
+        }
+      }
+    })
   }
 
   if (loading) {
@@ -603,6 +633,25 @@ export default function AdminPage() {
           )}
         </div>
       </main>
+
+      {/* Modales de Alert y Confirm */}
+      {alertConfig && alertConfig.show && (
+        <Alert
+          title={alertConfig.title}
+          message={alertConfig.message}
+          type={alertConfig.type}
+          onClose={() => setAlertConfig(null)}
+        />
+      )}
+      
+      {confirmConfig && confirmConfig.show && (
+        <Confirm
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(null)}
+        />
+      )}
     </div>
   )
 }

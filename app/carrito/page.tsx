@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import Spinner from '../components/Spinner'
+import Alert from '../components/Alert'
+import Confirm from '../components/Confirm'
 import { getSessionId } from '@/lib/session'
 
 interface ProductoImagen {
@@ -39,6 +41,8 @@ export default function CarritoPage() {
   const [eliminandoItem, setEliminandoItem] = useState<number | null>(null)
   const [tiemposRestantes, setTiemposRestantes] = useState<Record<number, string>>({})
   const [sessionId, setSessionId] = useState<string>('')
+  const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
+  const [confirmConfig, setConfirmConfig] = useState<{ show: boolean; message: string; onConfirm: () => void; title?: string } | null>(null)
 
   // Inicializar sessionId
   useEffect(() => {
@@ -136,49 +140,59 @@ export default function CarritoPage() {
   */
 
   const eliminarItem = async (itemId: number) => {
-    if (!confirm('¿Eliminar este producto del carrito?')) return
+    setConfirmConfig({
+      show: true,
+      message: '¿Eliminar este producto del carrito?',
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setEliminandoItem(itemId)
+        try {
+          const response = await fetch(`/api/carrito/${itemId}?sessionId=${sessionId}`, {
+            method: 'DELETE'
+          })
 
-    setEliminandoItem(itemId)
-    try {
-      const response = await fetch(`/api/carrito/${itemId}?sessionId=${sessionId}`, {
-        method: 'DELETE'
-      })
+          if (!response.ok) {
+            setAlertConfig({ show: true, message: 'Error al eliminar el producto', type: 'error' })
+            return
+          }
 
-      if (!response.ok) {
-        alert('Error al eliminar el producto')
-        return
+          await cargarCarrito()
+        } catch (error) {
+          console.error('Error al eliminar item:', error)
+          setAlertConfig({ show: true, message: 'Error al eliminar el producto', type: 'error' })
+        } finally {
+          setEliminandoItem(null)
+        }
       }
-
-      await cargarCarrito()
-    } catch (error) {
-      console.error('Error al eliminar item:', error)
-      alert('Error al eliminar el producto')
-    } finally {
-      setEliminandoItem(null)
-    }
+    })
   }
 
   const vaciarCarrito = async () => {
-    if (!confirm('¿Vaciar todo el carrito?')) return
+    setConfirmConfig({
+      show: true,
+      message: '¿Vaciar todo el carrito?',
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setVaciandoCarrito(true)
+        try {
+          const response = await fetch(`/api/carrito?sessionId=${sessionId}`, {
+            method: 'DELETE'
+          })
 
-    setVaciandoCarrito(true)
-    try {
-      const response = await fetch(`/api/carrito?sessionId=${sessionId}`, {
-        method: 'DELETE'
-      })
+          if (!response.ok) {
+            setAlertConfig({ show: true, message: 'Error al vaciar el carrito', type: 'error' })
+            return
+          }
 
-      if (!response.ok) {
-        alert('Error al vaciar el carrito')
-        return
+          await cargarCarrito()
+        } catch (error) {
+          console.error('Error al vaciar carrito:', error)
+          setAlertConfig({ show: true, message: 'Error al vaciar el carrito', type: 'error' })
+        } finally {
+          setVaciandoCarrito(false)
+        }
       }
-
-      await cargarCarrito()
-    } catch (error) {
-      console.error('Error al vaciar carrito:', error)
-      alert('Error al vaciar el carrito')
-    } finally {
-      setVaciandoCarrito(false)
-    }
+    })
   }
 
   const calcularTotal = () => {
@@ -191,52 +205,50 @@ export default function CarritoPage() {
   const procederAlPago = async () => {
     if (items.length === 0) return
 
-    const confirmar = window.confirm(
-      '¿Confirmar la reserva de estos productos?\n\n' +
-      'Los productos quedarán reservados por 3 horas.\n' +
-      'Si no se completa el pago en ese tiempo, la reserva se cancelará automáticamente.'
-    )
+    setConfirmConfig({
+      show: true,
+      message: '¿Confirmar la reserva de estos productos?\n\nLos productos quedarán reservados por 3 horas. Si no se completa el pago en ese tiempo, la reserva se cancelará automáticamente.',
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setProcesandoPago(true)
 
-    if (!confirmar) return
+        try {
+          const productosIds = items.map(item => item.productoId)
 
-    setProcesandoPago(true)
+          const response = await fetch('/api/ventas/reservar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productosIds,
+              compradorInfo: null, // Puedes agregar info del comprador aquí
+              sessionId
+            })
+          })
 
-    try {
-      const productosIds = items.map(item => item.productoId)
+          const data = await response.json()
 
-      const response = await fetch('/api/ventas/reservar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productosIds,
-          compradorInfo: null, // Puedes agregar info del comprador aquí
-          sessionId
-        })
-      })
+          if (!response.ok) {
+            setAlertConfig({ show: true, message: data.error || 'Error al reservar productos', type: 'error' })
+            return
+          }
 
-      const data = await response.json()
+          setAlertConfig({ 
+            show: true, 
+            title: '✅ Productos reservados exitosamente!',
+            message: 'Los productos permanecerán en tu carrito por 3 horas. Contacta al vendedor para confirmar tu pago.\n\nSi el pago se confirma, los productos serán marcados como vendidos. Si no se confirma en 3 horas, la reserva se cancelará automáticamente.', 
+            type: 'success' 
+          })
 
-      if (!response.ok) {
-        alert(data.error || 'Error al reservar productos')
-        return
+          // Recargar el carrito para actualizar el estado
+          await cargarCarrito()
+        } catch (error) {
+          console.error('Error al proceder al pago:', error)
+          setAlertConfig({ show: true, message: 'Error al procesar la reserva', type: 'error' })
+        } finally {
+          setProcesandoPago(false)
+        }
       }
-
-      alert(
-        '✅ Productos reservados exitosamente!\n\n' +
-        'Los productos permanecerán en tu carrito por 3 horas.\n' +
-        'Contacta al vendedor para confirmar tu pago.\n\n' +
-        'Si el pago se confirma, los productos serán marcados como vendidos.\n' +
-        'Si no se confirma en 3 horas, la reserva se cancelará automáticamente.'
-      )
-
-      // Recargar el carrito para actualizar el estado
-      await cargarCarrito()
-    } catch (error) {
-      console.error('Error al proceder al pago:', error)
-      alert('Error al procesar la reserva')
-    } finally {
-      setProcesandoPago(false)
-    }
+    })
   }
 
   if (cargando) {
@@ -415,6 +427,24 @@ export default function CarritoPage() {
           </>
         )}
       </div>
+
+      {alertConfig?.show && (
+        <Alert
+          title={alertConfig.title}
+          message={alertConfig.message}
+          type={alertConfig.type}
+          onClose={() => setAlertConfig(null)}
+        />
+      )}
+
+      {confirmConfig?.show && (
+        <Confirm
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(null)}
+        />
+      )}
     </div>
   )
 }

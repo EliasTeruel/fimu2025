@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Alert from '../components/Alert'
 
 export default function RegistroPage() {
   const [email, setEmail] = useState('')
@@ -11,6 +12,7 @@ export default function RegistroPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -38,8 +40,16 @@ export default function RegistroPage() {
 
       if (error) throw error
 
-      alert('Cuenta creada exitosamente. Por favor revisa tu email para confirmar.')
-      router.push('/login')
+      setAlertConfig({ 
+        show: true, 
+        title: 'Cuenta creada exitosamente',
+        message: 'Por favor revisa tu email para confirmar.', 
+        type: 'success' 
+      })
+      // Esperar un momento antes de redirigir para que el usuario vea el mensaje
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
     } catch (error: unknown) {
       const err = error as { message?: string }
       setError(err.message || 'Error al crear la cuenta')
@@ -137,6 +147,15 @@ export default function RegistroPage() {
           </div>
         </form>
       </div>
+
+      {alertConfig?.show && (
+        <Alert
+          title={alertConfig.title}
+          message={alertConfig.message}
+          type={alertConfig.type}
+          onClose={() => setAlertConfig(null)}
+        />
+      )}
     </div>
   )
 }

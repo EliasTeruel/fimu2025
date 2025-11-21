@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Spinner from './Spinner'
+import Alert from './Alert'
 import { getSessionId } from '@/lib/session'
 
 interface ProductoImagen {
@@ -38,6 +39,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
   const [agregando, setAgregando] = useState(false)
   const [imagenesCargadas, setImagenesCargadas] = useState(false)
   const [tiempoRestante, setTiempoRestante] = useState<string>('')
+  const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
 
   // Distancia mínima para considerar un swipe
   const minSwipeDistance = 50
@@ -91,12 +93,12 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
   const handleAgregarCarrito = async () => {
     // Verificar estado del producto
     if (producto.estado === 'reservado') {
-      alert('Este producto está reservado por otro comprador')
+      setAlertConfig({ show: true, message: 'Este producto está reservado por otro comprador', type: 'warning' })
       return
     }
 
     if (producto.estado === 'vendido') {
-      alert('Este producto ya fue vendido')
+      setAlertConfig({ show: true, message: 'Este producto ya fue vendido', type: 'error' })
       return
     }
 
@@ -122,15 +124,15 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
 
       if (!response.ok) {
         const error = await response.json()
-        alert(error.error || 'Error al agregar al carrito')
+        setAlertConfig({ show: true, message: error.error || 'Error al agregar al carrito', type: 'error' })
         return
       }
 
-      alert(`✅ ${producto.nombre} agregado al carrito`)
+      setAlertConfig({ show: true, message: `✅ ${producto.nombre} agregado al carrito`, type: 'success' })
       onClose()
     } catch (error) {
       console.error('Error al agregar al carrito:', error)
-      alert('Error al agregar al carrito')
+      setAlertConfig({ show: true, message: 'Error al agregar al carrito', type: 'error' })
     } finally {
       setAgregando(false)
     }
@@ -360,6 +362,15 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
           </button>
         </div>
       </div>
+
+      {alertConfig?.show && (
+        <Alert
+          title={alertConfig.title}
+          message={alertConfig.message}
+          type={alertConfig.type}
+          onClose={() => setAlertConfig(null)}
+        />
+      )}
     </div>
   )
 }

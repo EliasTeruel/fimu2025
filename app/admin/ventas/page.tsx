@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import Spinner from '../../components/Spinner'
+import Alert from '../../components/Alert'
+import Confirm from '../../components/Confirm'
 
 interface ProductoImagen {
   id: number
@@ -38,6 +40,8 @@ export default function VentasAdminPage() {
   const [vistaActual, setVistaActual] = useState<'todos' | 'carrito' | 'enCarritos' | 'reservados' | 'vendidos'>('todos')
   const [confirmandoVenta, setConfirmandoVenta] = useState<number | null>(null)
   const [cancelandoReserva, setCancelandoReserva] = useState<number | null>(null)
+  const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
+  const [confirmConfig, setConfirmConfig] = useState<{ show: boolean; message: string; onConfirm: () => void; title?: string } | null>(null)
 
   useEffect(() => {
     cargarProductos()
@@ -88,55 +92,65 @@ export default function VentasAdminPage() {
   }
 
   const confirmarVenta = async (productoId: number) => {
-    if (!confirm('¿Confirmar que se recibió el pago de este producto?')) return
+    setConfirmConfig({
+      show: true,
+      message: '¿Confirmar que se recibió el pago de este producto?',
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setConfirmandoVenta(productoId)
+        try {
+          const res = await fetch('/api/ventas/confirmar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productoId })
+          })
 
-    setConfirmandoVenta(productoId)
-    try {
-      const res = await fetch('/api/ventas/confirmar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productoId })
-      })
-
-      if (res.ok) {
-        alert('✅ Venta confirmada')
-        cargarProductos()
-      } else {
-        const error = await res.json()
-        alert(error.error || 'Error al confirmar venta')
+          if (res.ok) {
+            setAlertConfig({ show: true, message: '✅ Venta confirmada', type: 'success' })
+            cargarProductos()
+          } else {
+            const error = await res.json()
+            setAlertConfig({ show: true, message: error.error || 'Error al confirmar venta', type: 'error' })
+          }
+        } catch (error) {
+          console.error('Error:', error)
+          setAlertConfig({ show: true, message: 'Error al confirmar venta', type: 'error' })
+        } finally {
+          setConfirmandoVenta(null)
+        }
       }
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Error al confirmar venta')
-    } finally {
-      setConfirmandoVenta(null)
-    }
+    })
   }
 
   const cancelarReserva = async (productoId: number) => {
-    if (!confirm('¿Cancelar la reserva y devolver el producto a disponible?')) return
+    setConfirmConfig({
+      show: true,
+      message: '¿Cancelar la reserva y devolver el producto a disponible?',
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setCancelandoReserva(productoId)
+        try {
+          const res = await fetch('/api/ventas/cancelar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productoId })
+          })
 
-    setCancelandoReserva(productoId)
-    try {
-      const res = await fetch('/api/ventas/cancelar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productoId })
-      })
-
-      if (res.ok) {
-        alert('✅ Reserva cancelada')
-        cargarProductos()
-      } else {
-        const error = await res.json()
-        alert(error.error || 'Error al cancelar reserva')
+          if (res.ok) {
+            setAlertConfig({ show: true, message: '✅ Reserva cancelada', type: 'success' })
+            cargarProductos()
+          } else {
+            const error = await res.json()
+            setAlertConfig({ show: true, message: error.error || 'Error al cancelar reserva', type: 'error' })
+          }
+        } catch (error) {
+          console.error('Error:', error)
+          setAlertConfig({ show: true, message: 'Error al cancelar reserva', type: 'error' })
+        } finally {
+          setCancelandoReserva(null)
+        }
       }
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Error al cancelar reserva')
-    } finally {
-      setCancelandoReserva(null)
-    }
+    })
   }
 
   const obtenerImagenPrincipal = (producto: Producto): string => {
@@ -453,6 +467,24 @@ export default function VentasAdminPage() {
           </div>
         )}
       </div>
+
+      {alertConfig?.show && (
+        <Alert
+          title={alertConfig.title}
+          message={alertConfig.message}
+          type={alertConfig.type}
+          onClose={() => setAlertConfig(null)}
+        />
+      )}
+
+      {confirmConfig?.show && (
+        <Confirm
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(null)}
+        />
+      )}
     </div>
   )
 }
