@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Spinner from './Spinner'
 import Alert from './Alert'
 import { getSessionId } from '@/lib/session'
+import { createClient } from '@/lib/supabase/client'
 
 interface ProductoImagen {
   id: number
@@ -24,6 +25,8 @@ interface Producto {
   estado?: string
   reservadoEn?: Date | null
   compradorInfo?: string | null
+  reservaPausada?: boolean
+  pausadoEn?: Date | null
 }
 
 interface ProductoModalProps {
@@ -48,9 +51,35 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
   useEffect(() => {
     if (producto.estado === 'reservado' && producto.reservadoEn) {
       const calcularTiempo = () => {
+        // Si está pausado, mostrar mensaje y NO actualizar
+        if (producto.reservaPausada) {
+          setTiempoRestante('⏸️ PAUSADO POR ADMIN')
+          return
+        }
+
         const ahora = new Date()
         const reserva = new Date(producto.reservadoEn!)
-        const expira = new Date(reserva.getTime() + 3 * 60 * 60 * 1000) // 3 horas
+        const horaReserva = reserva.getHours()
+        
+        // Calcular expiración con lógica inteligente (30 min, 10:00-23:00)
+        let expira = new Date(reserva)
+        
+        // Caso especial: 22:XX → 30 minutos normales
+        if (horaReserva === 22) {
+          expira = new Date(reserva.getTime() + 30 * 60 * 1000)
+        }
+        // Madrugada/noche (23:00 - 10:00) → Empieza a contar desde las 10:00
+        else if (horaReserva >= 23 || horaReserva < 10) {
+          if (horaReserva >= 23) {
+            expira.setDate(expira.getDate() + 1)
+          }
+          expira.setHours(10, 30, 0, 0)
+        }
+        // Horario normal (10:00 - 21:59) → 30 minutos
+        else {
+          expira = new Date(reserva.getTime() + 30 * 60 * 1000)
+        }
+        
         const diferencia = expira.getTime() - ahora.getTime()
         
         if (diferencia <= 0) {
@@ -62,14 +91,18 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
         const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60))
         const segundos = Math.floor((diferencia % (1000 * 60)) / 1000)
         
-        setTiempoRestante(`⏱️ ${horas}h ${minutos}m ${segundos}s restantes`)
+        if (horas > 0) {
+          setTiempoRestante(`⏱️ ${horas}h ${minutos}m ${segundos}s restantes`)
+        } else {
+          setTiempoRestante(`⏱️ ${minutos}m ${segundos}s restantes`)
+        }
       }
       
       calcularTiempo()
       const interval = setInterval(calcularTiempo, 1000)
       return () => clearInterval(interval)
     }
-  }, [producto.estado, producto.reservadoEn])
+  }, [producto.estado, producto.reservadoEn, producto.reservaPausada])
 
   // Reset carga de imágenes al cambiar producto
   useEffect(() => {
@@ -102,28 +135,48 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
       return
     }
 
-    // Stock comentado - Solo 1 unidad por producto
-    // if (producto.stock < cantidad) {
-    //   alert('Stock insuficiente')
-    //   return
-    // }
-
     setAgregando(true)
 
     try {
       const sessionId = getSessionId()
+      
+      // Verificar si el usuario está logueado
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      let usuarioId = null
+      if (user) {
+        // Buscar el usuario en la base de datos por supabaseId
+        const responseUsuario = await fetch(`/api/usuarios?supabaseId=${user.id}`)
+        if (responseUsuario.ok) {
+          const dataUsuario = await responseUsuario.json()
+          if (dataUsuario) {
+            usuarioId = dataUsuario.id
+          }
+        }
+      }
+
+      const body: any = {
+        productoId: producto.id,
+        cantidad: 1, // Siempre 1 unidad
+        sessionId: sessionId || undefined // Evitar enviar string vacío
+      }
+      
+      if (usuarioId) {
+        body.usuarioId = usuarioId
+      }
+
+      console.log('📦 Agregando al carrito:', body) // Debug
+
       const response = await fetch('/api/carrito', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productoId: producto.id,
-          cantidad: 1, // Siempre 1 unidad
-          sessionId
-        })
+        body: JSON.stringify(body)
       })
 
       if (!response.ok) {
         const error = await response.json()
+        console.error('❌ Error del servidor:', error) // Debug
         setAlertConfig({ show: true, message: error.error || 'Error al agregar al carrito', type: 'error' })
         return
       }

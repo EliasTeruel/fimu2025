@@ -4,7 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 
 // GET /api/productos - Listar todos los productos
 export async function GET() {
+  console.log('🔍 [GET /api/productos] Iniciando request...')
+  
   try {
+    console.log('📊 [GET /api/productos] Conectando a Prisma...')
+    
     const productos = await prisma.producto.findMany({
       include: {
         imagenes: {
@@ -14,6 +18,8 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     })
     
+    console.log(`✅ [GET /api/productos] ${productos.length} productos encontrados`)
+    
     // Agregar headers de caché para mejorar rendimiento
     return NextResponse.json(productos, {
       headers: {
@@ -21,8 +27,15 @@ export async function GET() {
       }
     })
   } catch (error) {
+    console.error('❌ [GET /api/productos] Error:', error)
+    console.error('❌ [GET /api/productos] Error stack:', error instanceof Error ? error.stack : 'No stack')
+    console.error('❌ [GET /api/productos] Error message:', error instanceof Error ? error.message : error)
+    
     return NextResponse.json(
-      { error: 'Error al obtener productos' },
+      { 
+        error: 'Error al obtener productos',
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     )
   }

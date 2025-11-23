@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "taskkill /F /IM node.exe 2>nul & next dev",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
@@ -19,7 +20,8 @@
     "next": "16.0.3",
     "next-cloudinary": "^6.17.5",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "twilio": "^5.10.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

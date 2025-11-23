@@ -24,7 +24,26 @@ export default function LoginPage() {
         password,
       })
 
-      if (error) throw error
+      if (error) {
+        // Traducir mensajes de error comunes de Supabase
+        let mensajeError = 'Error al iniciar sesión'
+        
+        if (error.message.includes('Invalid login credentials')) {
+          mensajeError = 'Email o contraseña incorrectos. Verifica tus datos o regístrate si no tienes cuenta.'
+        } else if (error.message.includes('Email not confirmed')) {
+          mensajeError = 'Por favor confirma tu email antes de iniciar sesión. Revisa tu bandeja de entrada.'
+        } else if (error.message.includes('User not found')) {
+          mensajeError = 'No existe una cuenta con este email. ¿Quieres registrarte?'
+        } else if (error.message.includes('Invalid email')) {
+          mensajeError = 'El formato del email no es válido.'
+        } else if (error.message.includes('Password')) {
+          mensajeError = 'La contraseña es incorrecta.'
+        } else {
+          mensajeError = error.message
+        }
+        
+        throw new Error(mensajeError)
+      }
 
       router.push('/admin')
       router.refresh()

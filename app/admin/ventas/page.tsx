@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import Image from 'next/image'
 import Spinner from '../../components/Spinner'
@@ -24,6 +26,8 @@ interface Producto {
   estado: string
   reservadoEn: Date | null
   compradorInfo: string | null
+  reservaPausada?: boolean
+  pausadoEn?: Date | null
 }
 
 interface CarritoItem {
@@ -34,26 +38,88 @@ interface CarritoItem {
 }
 
 export default function VentasAdminPage() {
+  const router = useRouter()
+  const supabase = createClient()
   const [productos, setProductos] = useState<Producto[]>([])
   const [productosEnCarrito, setProductosEnCarrito] = useState<CarritoItem[]>([])
   const [loading, setLoading] = useState(true)
   const [vistaActual, setVistaActual] = useState<'todos' | 'carrito' | 'enCarritos' | 'reservados' | 'vendidos'>('todos')
   const [confirmandoVenta, setConfirmandoVenta] = useState<number | null>(null)
   const [cancelandoReserva, setCancelandoReserva] = useState<number | null>(null)
+  const [pausandoReserva, setPausandoReserva] = useState<number | null>(null)
+  const [marcandoVendido, setMarcandoVendido] = useState<number | null>(null)
+  const [volviendoDisponible, setVolviendoDisponible] = useState<number | null>(null)
   const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
   const [confirmConfig, setConfirmConfig] = useState<{ show: boolean; message: string; onConfirm: () => void; title?: string } | null>(null)
 
   useEffect(() => {
-    cargarProductos()
-    cargarProductosEnCarrito()
-    verificarReservasExpiradas()
-    // Verificar reservas expiradas cada minuto
-    const interval = setInterval(() => {
+    async function verificarAdmin() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        router.push('/login')
+        return
+      }
+
+      // Verificar si el usuario es admin
+      try {
+        const res = await fetch(`/api/usuarios?supabaseId=${user.id}`)
+        if (res.ok) {
+          const usuario = await res.json()
+          if (!usuario.isAdmin) {
+            setAlertConfig({
+              show: true,
+              message: 'No tienes permisos para acceder a esta página.',
+              type: 'error',
+              title: 'Acceso denegado'
+            })
+            setTimeout(() => {
+              router.push('/')
+            }, 2000)
+            return
+          }
+        } else {
+          setAlertConfig({
+            show: true,
+            message: 'Usuario no encontrado en el sistema.',
+            type: 'error',
+            title: 'Error'
+          })
+          setTimeout(() => {
+            router.push('/')
+          }, 2000)
+          return
+        }
+      } catch (error) {
+        console.error('Error al verificar permisos:', error)
+        setAlertConfig({
+          show: true,
+          message: 'Error al verificar permisos.',
+          type: 'error',
+          title: 'Error'
+        })
+        setTimeout(() => {
+          router.push('/')
+        }, 2000)
+        return
+      }
+
+      // Si es admin, cargar datos
+      cargarProductos()
+      cargarProductosEnCarrito()
       verificarReservasExpiradas()
-    }, 60000)
-    return () => clearInterval(interval)
+      // Verificar reservas expiradas cada minuto
+      const interval = setInterval(() => {
+        verificarReservasExpiradas()
+      }, 60000)
+      return () => clearInterval(interval)
+    }
+
+    verificarAdmin()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [router, supabase])
 
   const cargarProductos = async () => {
     try {
@@ -153,6 +219,116 @@ export default function VentasAdminPage() {
     })
   }
 
+  const togglePausarReserva = (productoId: number, nombreProducto: string, pausado: boolean) => {
+    const accion = pausado ? 'reanudar' : 'pausar'
+    setConfirmConfig({
+      show: true,
+      title: pausado ? '▶️ Reanudar cronómetro' : '⏸️ Pausar cronómetro',
+      message: `¿Deseas ${accion} el cronómetro de "${nombreProducto}"?`,
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setPausandoReserva(productoId)
+        try {
+          const res = await fetch('/api/ventas/pausar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productoId })
+          })
+
+          if (res.ok) {
+            const data = await res.json()
+            setAlertConfig({ 
+              show: true, 
+              message: data.pausado ? '⏸️ Cronómetro pausado' : '▶️ Cronómetro reanudado', 
+              type: 'success' 
+            })
+            cargarProductos()
+          } else {
+            const error = await res.json()
+            setAlertConfig({ show: true, message: error.error || 'Error al pausar/reanudar', type: 'error' })
+          }
+        } catch (error) {
+          console.error('Error:', error)
+          setAlertConfig({ show: true, message: 'Error al pausar/reanudar', type: 'error' })
+        } finally {
+          setPausandoReserva(null)
+        }
+      }
+    })
+  }
+
+  const marcarComoVendido = (productoId: number, nombreProducto: string) => {
+    setConfirmConfig({
+      show: true,
+      title: '💰 Marcar como vendido',
+      message: `¿Confirmar venta externa de "${nombreProducto}"?\n\nEsto marcará el producto como vendido sin pasar por el proceso de reserva.`,
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setMarcandoVendido(productoId)
+        try {
+          const res = await fetch('/api/ventas/marcar-vendido', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productoId })
+          })
+
+          if (res.ok) {
+            setAlertConfig({ 
+              show: true, 
+              message: '✅ Producto marcado como vendido', 
+              type: 'success' 
+            })
+            cargarProductos()
+          } else {
+            const error = await res.json()
+            setAlertConfig({ show: true, message: error.error || 'Error al marcar como vendido', type: 'error' })
+          }
+        } catch (error) {
+          console.error('Error:', error)
+          setAlertConfig({ show: true, message: 'Error al marcar como vendido', type: 'error' })
+        } finally {
+          setMarcandoVendido(null)
+        }
+      }
+    })
+  }
+
+  const volverADisponible = (productoId: number, nombreProducto: string) => {
+    setConfirmConfig({
+      show: true,
+      title: '🔄 Volver a disponible',
+      message: `¿Liberar "${nombreProducto}" y volverlo a disponible?\n\nEsto eliminará toda la información de reserva/venta.`,
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setVolviendoDisponible(productoId)
+        try {
+          const res = await fetch('/api/ventas/disponible', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productoId })
+          })
+
+          if (res.ok) {
+            setAlertConfig({ 
+              show: true, 
+              message: '🔄 Producto vuelto a disponible', 
+              type: 'success' 
+            })
+            cargarProductos()
+          } else {
+            const error = await res.json()
+            setAlertConfig({ show: true, message: error.error || 'Error al volver a disponible', type: 'error' })
+          }
+        } catch (error) {
+          console.error('Error:', error)
+          setAlertConfig({ show: true, message: 'Error al volver a disponible', type: 'error' })
+        } finally {
+          setVolviendoDisponible(null)
+        }
+      }
+    })
+  }
+
   const obtenerImagenPrincipal = (producto: Producto): string => {
     const imagenPrincipal = producto.imagenes?.find(img => img.esPrincipal)
     if (imagenPrincipal) return imagenPrincipal.url
@@ -160,12 +336,34 @@ export default function VentasAdminPage() {
     return producto.imagenUrl || '/placeholder.jpg'
   }
 
-  const calcularTiempoRestante = (reservadoEn: Date | null): string => {
+  const calcularTiempoRestante = (reservadoEn: Date | null, pausado?: boolean): string => {
     if (!reservadoEn) return ''
+    
+    if (pausado) return '⏸️ PAUSADO'
     
     const ahora = new Date()
     const reserva = new Date(reservadoEn)
-    const expira = new Date(reserva.getTime() + 3 * 60 * 60 * 1000) // 3 horas
+    const horaReserva = reserva.getHours()
+    
+    // Calcular expiración según la lógica inteligente
+    let expira = new Date(reserva)
+    
+    // Caso especial: 22:XX → 30 minutos normales
+    if (horaReserva === 22) {
+      expira = new Date(reserva.getTime() + 30 * 60 * 1000)
+    }
+    // Madrugada/noche (23:00 - 10:00) → Empieza a contar desde las 10:00
+    else if (horaReserva >= 23 || horaReserva < 10) {
+      if (horaReserva >= 23) {
+        expira.setDate(expira.getDate() + 1)
+      }
+      expira.setHours(10, 30, 0, 0) // 10:00 + 30 min = 10:30
+    }
+    // Horario normal (10:00 - 21:59) → 30 minutos
+    else {
+      expira = new Date(reserva.getTime() + 30 * 60 * 1000)
+    }
+    
     const diferencia = expira.getTime() - ahora.getTime()
     
     if (diferencia <= 0) return '⏰ Expirado'
@@ -173,7 +371,10 @@ export default function VentasAdminPage() {
     const horas = Math.floor(diferencia / (1000 * 60 * 60))
     const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60))
     
-    return `⏱️ ${horas}h ${minutos}m restantes`
+    if (horas > 0) {
+      return `⏱️ ${horas}h ${minutos}m restantes`
+    }
+    return `⏱️ ${minutos}m restantes`
   }
 
   const productosFiltrados = productos.filter(p => {
@@ -407,7 +608,7 @@ export default function VentasAdminPage() {
                     {producto.estado === 'reservado' && producto.reservadoEn && (
                       <div className="mb-3 p-2 rounded" style={{ backgroundColor: '#FFF4E6' }}>
                         <p className="text-sm font-semibold" style={{ color: '#FF6012' }}>
-                          {calcularTiempoRestante(producto.reservadoEn)}
+                          {calcularTiempoRestante(producto.reservadoEn, producto.reservaPausada)}
                         </p>
                         {producto.compradorInfo && (
                           <p className="text-sm" style={{ color: '#5E18EB' }}>
@@ -418,7 +619,7 @@ export default function VentasAdminPage() {
                     )}
 
                     {/* Acciones */}
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       {producto.estado === 'reservado' && (
                         <>
                           <button
@@ -434,6 +635,21 @@ export default function VentasAdminPage() {
                               </>
                             ) : (
                               '✅ Confirmar Pago'
+                            )}
+                          </button>
+                          <button
+                            onClick={() => togglePausarReserva(producto.id, producto.nombre, producto.reservaPausada || false)}
+                            disabled={pausandoReserva === producto.id}
+                            className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                            style={{ backgroundColor: producto.reservaPausada ? '#5E18EB' : '#FFA500' }}
+                          >
+                            {pausandoReserva === producto.id ? (
+                              <>
+                                <Spinner size="sm" color="#ffffff" />
+                                {producto.reservaPausada ? 'Reanudando...' : 'Pausando...'}
+                              </>
+                            ) : (
+                              producto.reservaPausada ? '▶️ Reanudar' : '⏸️ Pausar'
                             )}
                           </button>
                           <button
@@ -454,9 +670,43 @@ export default function VentasAdminPage() {
                         </>
                       )}
                       {producto.estado === 'disponible' && (
-                        <span className="text-sm" style={{ color: '#5E18EB' }}>
-                          Stock: {producto.stock} unidades
-                        </span>
+                        <>
+                          <button
+                            onClick={() => marcarComoVendido(producto.id, producto.nombre)}
+                            disabled={marcandoVendido === producto.id}
+                            className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                            style={{ backgroundColor: '#00A86B' }}
+                          >
+                            {marcandoVendido === producto.id ? (
+                              <>
+                                <Spinner size="sm" color="#ffffff" />
+                                Marcando...
+                              </>
+                            ) : (
+                              '💰 Marcar Vendido'
+                            )}
+                          </button>
+                          <span className="text-sm self-center" style={{ color: '#5E18EB' }}>
+                            Stock: {producto.stock} unidades
+                          </span>
+                        </>
+                      )}
+                      {producto.estado === 'vendido' && (
+                        <button
+                          onClick={() => volverADisponible(producto.id, producto.nombre)}
+                          disabled={volviendoDisponible === producto.id}
+                          className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                          style={{ backgroundColor: '#5E18EB' }}
+                        >
+                          {volviendoDisponible === producto.id ? (
+                            <>
+                              <Spinner size="sm" color="#ffffff" />
+                              Liberando...
+                            </>
+                          ) : (
+                            '🔄 Volver Disponible'
+                          )}
+                        </button>
                       )}
                     </div>
                   </div>

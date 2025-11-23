@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { calcularExpiracionReserva } from '@/lib/reserva-utils'
 
 // POST - Reservar productos al hacer click en "Pagar"
 export async function POST(request: Request) {
@@ -20,14 +21,19 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verificar que todos los productos estén disponibles
+    // Verificar que los productos estén disponibles O ya estén reservados por este mismo cliente
     const productos = await prisma.producto.findMany({
       where: {
         id: { in: productosIds }
       }
     })
 
-    const noDisponibles = productos.filter((p: typeof productos[0]) => p.estado !== 'disponible')
+    const noDisponibles = productos.filter((p: typeof productos[0]) => {
+      // Permitir si está disponible o si ya está reservado por este cliente
+      const esDisponible = p.estado === 'disponible'
+      const esReservadoPorEsteCliente = p.estado === 'reservado' && p.compradorInfo === compradorInfo
+      return !esDisponible && !esReservadoPorEsteCliente
+    })
     
     if (noDisponibles.length > 0) {
       return NextResponse.json(
@@ -39,26 +45,46 @@ export async function POST(request: Request) {
       )
     }
 
-    // Reservar todos los productos
+    // Buscar si ya hay productos reservados por este cliente
+    const productosReservadosExistentes = await prisma.producto.findMany({
+      where: {
+        estado: 'reservado',
+        compradorInfo: compradorInfo
+      }
+    })
+
+    // Definir el nuevo tiempo de reserva usando lógica inteligente
     const ahora = new Date()
+    const tiempoExpiracion = calcularExpiracionReserva(ahora) // Expira según horario de atención
+
+    // Reservar/actualizar todos los productos (nuevos y existentes del mismo cliente)
+    const todosLosIds = [...new Set([
+      ...productosIds,
+      ...productosReservadosExistentes.map(p => p.id)
+    ])]
+
     await prisma.producto.updateMany({
       where: {
-        id: { in: productosIds }
+        id: { in: todosLosIds }
       },
       data: {
         estado: 'reservado',
-        reservadoEn: ahora,
+        reservadoEn: ahora, // Actualizar tiempo para todos
         compradorInfo: compradorInfo || null
       }
     })
 
-    // NO vaciar el carrito - los productos permanecen hasta que se confirme la venta o expire
-    // Los items del carrito se eliminarán automáticamente cuando se confirme la venta o se cancele
+    const mensajeExtra = productosReservadosExistentes.length > 0 
+      ? ` Se extendió la reserva de ${productosReservadosExistentes.length} producto(s) existente(s).`
+      : ''
 
     return NextResponse.json({ 
-      message: 'Productos reservados exitosamente',
+      message: `Productos reservados exitosamente.${mensajeExtra}`,
       reservadoEn: ahora,
-      expiresAt: new Date(ahora.getTime() + 3 * 60 * 60 * 1000) // 3 horas después
+      expiresAt: tiempoExpiracion,
+      productosReservados: todosLosIds.length,
+      productosNuevos: productosIds.length,
+      productosExtendidos: productosReservadosExistentes.length
     })
   } catch (error) {
     console.error('Error al reservar productos:', error)

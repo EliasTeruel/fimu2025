@@ -23,6 +23,8 @@ model Producto {
   estado      String           @default("disponible") // disponible, reservado, vendido
   reservadoEn DateTime?        @map("reservado_en") // Timestamp cuando se dio click en Pagar
   compradorInfo String?        @map("comprador_info") // Info del comprador (nombre, contacto, etc)
+  reservaPausada Boolean        @default(false) @map("reserva_pausada") // Admin puede pausar el cronómetro
+  pausadoEn   DateTime?        @map("pausado_en") // Timestamp cuando se pausó
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -50,14 +52,37 @@ model CarritoItem {
   id             Int      @id @default(autoincrement())
   productoId     Int      @map("producto_id")
   sessionId      String?  @map("session_id") // UUID del navegador/dispositivo para usuarios anónimos
+  usuarioId      Int?     @map("usuario_id") // ID del usuario logueado (si aplica)
   cantidad       Int      @default(1)
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   
   producto       Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  usuario        Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@index([productoId]) // Índice para búsquedas por producto
   @@index([sessionId]) // Índice para búsquedas por sesión
+  @@index([usuarioId]) // Índice para búsquedas por usuario
   @@unique([productoId, sessionId]) // Evitar duplicados - un producto solo puede estar una vez por sesión
   @@map("carrito_items")
+}
+
+model Usuario {
+  id                Int            @id @default(autoincrement())
+  email             String         @unique
+  supabaseId        String?        @unique @map("supabase_id") // UUID de Supabase Auth
+  nombre            String?
+  apellido          String?
+  redSocial         String?        @map("red_social") // 'facebook', 'instagram', 'tiktok', 'otro'
+  nombreRedSocial   String?        @map("nombre_red_social") // El @ o nombre de usuario
+  whatsapp          String?
+  isAdmin           Boolean        @default(false) @map("is_admin")
+  carritoItems      CarritoItem[]  // Relación con items del carrito
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([supabaseId])
+  @@index([isAdmin])
+  @@map("usuarios")
 }

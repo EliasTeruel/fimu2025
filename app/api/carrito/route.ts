@@ -1,21 +1,31 @@
 import { NextResponse } from 'next/server'
 import {prisma} from '@/lib/prisma'
 
-// GET - Obtener todos los items del carrito por sessionId
+// GET - Obtener todos los items del carrito por sessionId o usuarioId
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')
+    const usuarioId = searchParams.get('usuarioId')
 
-    if (!sessionId) {
+    console.log('📥 GET /api/carrito - Params:', { sessionId, usuarioId }) // Debug
+
+    if (!sessionId && !usuarioId) {
       return NextResponse.json(
-        { error: 'sessionId es requerido' },
+        { error: 'sessionId o usuarioId es requerido' },
         { status: 400 }
       )
     }
 
+    // Priorizar usuarioId si está presente (usuario logueado)
+    const whereClause = usuarioId 
+      ? { usuarioId: parseInt(usuarioId) }
+      : { sessionId, usuarioId: null } // Solo items sin usuario asignado
+
+    console.log('🔍 Buscando items con:', whereClause) // Debug
+
     const items = await prisma.carritoItem.findMany({
-      where: { sessionId },
+      where: whereClause,
       include: {
         producto: {
           include: {
@@ -32,6 +42,8 @@ export async function GET(request: Request) {
       }
     })
 
+    console.log(`✅ Encontrados ${items.length} items`) // Debug
+
     return NextResponse.json(items)
   } catch (error) {
     console.error('Error al obtener carrito:', error)
@@ -45,11 +57,25 @@ export async function GET(request: Request) {
 // POST - Agregar producto al carrito
 export async function POST(request: Request) {
   try {
-    const { productoId, cantidad, sessionId } = await request.json()
+    const { productoId, cantidad, sessionId, usuarioId } = await request.json()
 
-    if (!productoId || !cantidad || !sessionId) {
+    console.log('📥 POST /api/carrito recibido:', { productoId, cantidad, sessionId, usuarioId }) // Debug
+
+    if (!productoId || !cantidad) {
       return NextResponse.json(
-        { error: 'Producto ID, cantidad y sessionId son requeridos' },
+        { error: 'Producto ID y cantidad son requeridos' },
+        { status: 400 }
+      )
+    }
+
+    // Validar que al menos uno de los dos esté presente y no sea vacío
+    const hasSessionId = sessionId && sessionId.trim() !== ''
+    const hasUsuarioId = usuarioId && usuarioId > 0
+
+    if (!hasSessionId && !hasUsuarioId) {
+      console.error('❌ Validación falló: sessionId y usuarioId vacíos')
+      return NextResponse.json(
+        { error: 'sessionId o usuarioId es requerido', debug: { sessionId, usuarioId } },
         { status: 400 }
       )
     }
@@ -88,12 +114,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verificar si el producto ya está en el carrito de esta sesión
+    // Verificar si el producto ya está en el carrito (por usuario o por sesión)
+    const whereClause = usuarioId
+      ? { productoId, usuarioId: parseInt(usuarioId) }
+      : { productoId, sessionId, usuarioId: null }
+
     const itemExistente = await prisma.carritoItem.findFirst({
-      where: { 
-        productoId,
-        sessionId 
-      }
+      where: whereClause
     })
 
     let item
@@ -124,12 +151,18 @@ export async function POST(request: Request) {
       })
     } else {
       // Crear nuevo item
+      const createData: any = {
+        productoId,
+        cantidad,
+        sessionId
+      }
+      
+      if (usuarioId) {
+        createData.usuarioId = parseInt(usuarioId)
+      }
+
       item = await prisma.carritoItem.create({
-        data: {
-          productoId,
-          cantidad,
-          sessionId
-        },
+        data: createData,
         include: {
           producto: {
             include: {
@@ -152,21 +185,26 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - Vaciar carrito por sessionId
+// DELETE - Vaciar carrito por sessionId o usuarioId
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')
+    const usuarioId = searchParams.get('usuarioId')
 
-    if (!sessionId) {
+    if (!sessionId && !usuarioId) {
       return NextResponse.json(
-        { error: 'sessionId es requerido' },
+        { error: 'sessionId o usuarioId es requerido' },
         { status: 400 }
       )
     }
 
+    const whereClause = usuarioId
+      ? { usuarioId: parseInt(usuarioId) }
+      : { sessionId, usuarioId: null }
+
     await prisma.carritoItem.deleteMany({
-      where: { sessionId }
+      where: whereClause
     })
     return NextResponse.json({ message: 'Carrito vaciado' })
   } catch (error) {

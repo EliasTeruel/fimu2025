@@ -1,11 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import Image from 'next/image'
 import Spinner from '../components/Spinner'
 import Alert from '../components/Alert'
 import Confirm from '../components/Confirm'
+import ContactoModal, { ContactoData } from '../components/ContactoModal'
+import { calcularTiempoRestante, obtenerMensajeExpiracion } from '@/lib/reserva-utils'
 import { getSessionId } from '@/lib/session'
 
 interface ProductoImagen {
@@ -24,6 +27,8 @@ interface Producto {
   imagenes: ProductoImagen[]
   estado?: string
   reservadoEn?: Date | null
+  reservaPausada?: boolean
+  pausadoEn?: Date | null
 }
 
 interface CarritoItem {
@@ -34,6 +39,7 @@ interface CarritoItem {
 }
 
 export default function CarritoPage() {
+  const supabase = createClient()
   const [items, setItems] = useState<CarritoItem[]>([])
   const [cargando, setCargando] = useState(true)
   const [procesandoPago, setProcesandoPago] = useState(false)
@@ -43,6 +49,9 @@ export default function CarritoPage() {
   const [sessionId, setSessionId] = useState<string>('')
   const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
   const [confirmConfig, setConfirmConfig] = useState<{ show: boolean; message: string; onConfirm: () => void; title?: string } | null>(null)
+  const [mostrarContactoModal, setMostrarContactoModal] = useState(false)
+  const [userLoggedIn, setUserLoggedIn] = useState(false)
+  const [datosUsuario, setDatosUsuario] = useState<ContactoData | null>(null)
 
   // Inicializar sessionId
   useEffect(() => {
@@ -50,25 +59,97 @@ export default function CarritoPage() {
     setSessionId(id)
   }, [])
 
+  // Verificar si el usuario está logueado y obtener sus datos
+  useEffect(() => {
+    async function verificarUsuario() {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        setUserLoggedIn(true)
+        
+        // Obtener datos del usuario desde la base de datos
+        try {
+          const res = await fetch(`/api/usuarios?supabaseId=${user.id}`)
+          if (res.ok) {
+            const usuario = await res.json()
+            setDatosUsuario({
+              nombre: usuario.nombre || '',
+              apellido: usuario.apellido || '',
+              telefono: usuario.whatsapp || '',
+              redSocial: usuario.redSocial || 'instagram',
+              nombreRedSocial: usuario.nombreRedSocial || ''
+            })
+
+            // Migrar carrito de invitado a usuario logueado
+            if (sessionId) {
+              try {
+                const resMigrar = await fetch('/api/carrito/migrar', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    sessionId,
+                    usuarioId: usuario.id
+                  })
+                })
+                if (resMigrar.ok) {
+                  const dataMigrar = await resMigrar.json()
+                  console.log('✅ Carrito migrado:', dataMigrar)
+                  // Recargar carrito después de migrar
+                  cargarCarrito()
+                }
+              } catch (error) {
+                console.error('Error al migrar carrito:', error)
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error al obtener datos del usuario:', error)
+        }
+      } else {
+        setUserLoggedIn(false)
+        setDatosUsuario(null)
+      }
+    }
+    
+    verificarUsuario()
+  }, [supabase, sessionId])
+
   // Calcular tiempo restante para productos reservados
   useEffect(() => {
     const calcularTiempos = () => {
       const nuevos: Record<number, string> = {}
       items.forEach(item => {
         if (item.producto.estado === 'reservado' && item.producto.reservadoEn) {
-          const ahora = new Date()
-          const reserva = new Date(item.producto.reservadoEn)
-          const expira = new Date(reserva.getTime() + 3 * 60 * 60 * 1000) // 3 horas
-          const diferencia = expira.getTime() - ahora.getTime()
-          
-          if (diferencia <= 0) {
-            nuevos[item.producto.id] = '⏰ Expirado'
-          } else {
-            const horas = Math.floor(diferencia / (1000 * 60 * 60))
-            const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60))
-            const segundos = Math.floor((diferencia % (1000 * 60)) / 1000)
-            nuevos[item.producto.id] = `⏱️ ${horas}h ${minutos}m ${segundos}s`
+          // Si está pausado, mostrar mensaje especial y NO RECALCULAR
+          if (item.producto.reservaPausada) {
+            nuevos[item.producto.id] = '⏸️ PAUSADO POR ADMIN'
+            return // ⚠️ Importante: No calcular tiempo cuando está pausado
           }
+
+          const reserva = new Date(item.producto.reservadoEn)
+          
+          // Calcular expiración usando la misma lógica inteligente que el backend
+          const expira = new Date(reserva)
+          const horaReserva = reserva.getHours()
+          
+          // Caso especial: 22:XX → 30 minutos normales
+          if (horaReserva === 22) {
+            expira.setTime(reserva.getTime() + 30 * 60 * 1000)
+          }
+          // Madrugada/noche (23:00 - 10:00) → Empieza a contar desde las 10:00
+          else if (horaReserva >= 23 || horaReserva < 10) {
+            if (horaReserva >= 23) {
+              expira.setDate(expira.getDate() + 1)
+            }
+            expira.setHours(10, 30, 0, 0)
+          }
+          // Horario normal (10:00 - 21:59) → 30 minutos
+          else {
+            expira.setTime(reserva.getTime() + 30 * 60 * 1000)
+          }
+          
+          // Usar función de la librería para formatear
+          nuevos[item.producto.id] = calcularTiempoRestante(reserva, expira)
         }
       })
       setTiemposRestantes(nuevos)
@@ -83,23 +164,60 @@ export default function CarritoPage() {
     if (sessionId) {
       cargarCarrito()
     }
+  }, [sessionId, userLoggedIn]) // Recargar cuando cambia el estado de login
+
+  // Recargar carrito cada 10 segundos para actualizar estados (pausas, expiraciones, etc)
+  useEffect(() => {
+    if (!sessionId) return
+
+    const interval = setInterval(() => {
+      cargarCarrito()
+    }, 10000) // Cada 10 segundos
+
+    return () => clearInterval(interval)
   }, [sessionId])
 
   const cargarCarrito = async () => {
-    if (!sessionId) return
+    if (!sessionId) {
+      console.log('⚠️ No hay sessionId, no se puede cargar carrito')
+      return
+    }
     
     try {
-      const response = await fetch(`/api/carrito?sessionId=${sessionId}`)
+      // Verificar si el usuario está logueado en tiempo real
+      const { data: { user } } = await supabase.auth.getUser()
+      let url = `/api/carrito?sessionId=${sessionId}`
+      
+      if (user) {
+        // Usuario logueado - buscar por usuarioId
+        const resUsuario = await fetch(`/api/usuarios?supabaseId=${user.id}`)
+        if (resUsuario.ok) {
+          const usuario = await resUsuario.json()
+          if (usuario && usuario.id) {
+            url = `/api/carrito?usuarioId=${usuario.id}`
+            console.log('👤 Cargando carrito por usuarioId:', usuario.id)
+          }
+        }
+      } else {
+        console.log('👤 Cargando carrito por sessionId:', sessionId)
+      }
+      
+      console.log('📡 Fetching:', url)
+      const response = await fetch(url)
       const data = await response.json()
+      
+      console.log('📦 Carrito recibido:', data)
+      
       // Si hay un error en el API, data será un objeto con error, no un array
       if (Array.isArray(data)) {
         setItems(data)
+        console.log(`✅ ${data.length} items cargados en el carrito`)
       } else {
-        console.error('Error del API:', data)
+        console.error('❌ Error del API:', data)
         setItems([])
       }
     } catch (error) {
-      console.error('Error al cargar carrito:', error)
+      console.error('❌ Error al cargar carrito:', error)
       setItems([])
     } finally {
       setCargando(false)
@@ -205,50 +323,112 @@ export default function CarritoPage() {
   const procederAlPago = async () => {
     if (items.length === 0) return
 
-    setConfirmConfig({
-      show: true,
-      message: '¿Confirmar la reserva de estos productos?\n\nLos productos quedarán reservados por 3 horas. Si no se completa el pago en ese tiempo, la reserva se cancelará automáticamente.',
-      onConfirm: async () => {
-        setConfirmConfig(null)
-        setProcesandoPago(true)
+    // Si el usuario está logueado y tiene datos completos, proceder directamente
+    if (userLoggedIn && datosUsuario && datosUsuario.telefono) {
+      await confirmarReservaConDatos(datosUsuario)
+    } else {
+      // Si no está logueado o no tiene teléfono, mostrar modal
+      setMostrarContactoModal(true)
+    }
+  }
 
-        try {
-          const productosIds = items.map(item => item.productoId)
+  const confirmarReservaConDatos = async (contactoData: ContactoData) => {
+    setMostrarContactoModal(false)
+    setProcesandoPago(true)
 
-          const response = await fetch('/api/ventas/reservar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              productosIds,
-              compradorInfo: null, // Puedes agregar info del comprador aquí
-              sessionId
-            })
+    try {
+      // Separar productos: nuevos (disponibles) vs ya reservados
+      const productosNuevos = items.filter(item => item.producto.estado === 'disponible')
+      const productosYaReservados = items.filter(item => item.producto.estado === 'reservado')
+      
+      // Todos los IDs (para enviar en WhatsApp)
+      const todosLosProductosIds = items.map(item => item.productoId)
+      
+      // Solo reservar si hay productos nuevos
+      if (productosNuevos.length > 0) {
+        const productosNuevosIds = productosNuevos.map(item => item.productoId)
+        const compradorInfo = `${contactoData.nombre} ${contactoData.apellido} | Tel: ${contactoData.telefono} | ${contactoData.redSocial}: ${contactoData.nombreRedSocial || 'N/A'}`
+
+        // 1. Reservar productos nuevos (y extender los existentes)
+        const responseReserva = await fetch('/api/ventas/reservar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productosIds: productosNuevosIds,
+            compradorInfo,
+            sessionId
           })
+        })
 
-          const data = await response.json()
+        const dataReserva = await responseReserva.json()
 
-          if (!response.ok) {
-            setAlertConfig({ show: true, message: data.error || 'Error al reservar productos', type: 'error' })
-            return
-          }
-
-          setAlertConfig({ 
-            show: true, 
-            title: '✅ Productos reservados exitosamente!',
-            message: 'Los productos permanecerán en tu carrito por 3 horas. Contacta al vendedor para confirmar tu pago.\n\nSi el pago se confirma, los productos serán marcados como vendidos. Si no se confirma en 3 horas, la reserva se cancelará automáticamente.', 
-            type: 'success' 
-          })
-
-          // Recargar el carrito para actualizar el estado
-          await cargarCarrito()
-        } catch (error) {
-          console.error('Error al proceder al pago:', error)
-          setAlertConfig({ show: true, message: 'Error al procesar la reserva', type: 'error' })
-        } finally {
-          setProcesandoPago(false)
+        if (!responseReserva.ok) {
+          setAlertConfig({ show: true, message: dataReserva.error || 'Error al reservar productos', type: 'error' })
+          return
         }
+
+        console.log('📦 Reserva actualizada:', {
+          nuevos: dataReserva.productosNuevos,
+          extendidos: dataReserva.productosExtendidos,
+          total: dataReserva.productosReservados
+        })
       }
-    })
+
+      // 2. Enviar notificación por WhatsApp (con TODOS los productos)
+      const adminPhone = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP || '+5491172374065'
+      
+      try {
+        const responseWhatsApp = await fetch('/api/notificaciones/whatsapp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            adminPhone,
+            clienteNombre: `${contactoData.nombre} ${contactoData.apellido}`,
+            clienteTelefono: contactoData.telefono,
+            clienteRedSocial: contactoData.nombreRedSocial ? `${contactoData.redSocial}: ${contactoData.nombreRedSocial}` : null,
+            productos: items.map(item => ({
+              nombre: item.producto.nombre,
+              precio: item.producto.precio
+            })),
+            total: calcularTotal()
+          })
+        })
+
+        const dataWhatsApp = await responseWhatsApp.json()
+        
+        if (!responseWhatsApp.ok) {
+          console.error('Error al enviar WhatsApp:', dataWhatsApp)
+          // No bloqueamos la reserva si falla el WhatsApp
+        } else {
+          console.log('✅ Notificación WhatsApp enviada:', dataWhatsApp)
+        }
+      } catch (errorWhatsApp) {
+        console.error('Error al enviar notificación WhatsApp:', errorWhatsApp)
+        // No bloqueamos la reserva si falla el WhatsApp
+      }
+
+      const mensajeExtra = productosYaReservados.length > 0
+        ? `\n\n(${productosYaReservados.length} producto(s) ya estaban reservados - tiempo extendido)`
+        : ''
+
+      // Obtener mensaje de expiración inteligente
+      const mensajeExpiracion = obtenerMensajeExpiracion(new Date())
+
+      setAlertConfig({ 
+        show: true, 
+        title: '✅ Reserva confirmada!',
+        message: `Gracias ${contactoData.nombre}! ${mensajeExpiracion}${mensajeExtra}\n\n💰 TOTAL A PAGAR: $${calcularTotal().toFixed(2)}\n\n📱 DATOS DE PAGO:\nAlias: fimu.vintage\nNombre: Elias Teruel\n\n📸 Enviá el comprobante de transferencia por WhatsApp al ${process.env.NEXT_PUBLIC_ADMIN_WHATSAPP}\n\n⏰ Si no se confirma el pago antes de que expire la reserva, se cancelará automáticamente.`, 
+        type: 'success' 
+      })
+
+      // Recargar el carrito para actualizar el estado
+      await cargarCarrito()
+    } catch (error) {
+      console.error('Error al proceder al pago:', error)
+      setAlertConfig({ show: true, message: 'Error al procesar la reserva', type: 'error' })
+    } finally {
+      setProcesandoPago(false)
+    }
   }
 
   if (cargando) {
@@ -326,7 +506,7 @@ export default function CarritoPage() {
                   {item.producto.estado === 'reservado' && (
                     <div className="mb-3 p-4 rounded-lg border-2" style={{ backgroundColor: '#FFF4E6', borderColor: '#FF6012' }}>
                       <p className="font-bold text-xl mb-2" style={{ color: '#FF6012' }}>
-                        ⏱️ Producto Reservado
+                        Producto Reservado
                       </p>
                       {tiemposRestantes[item.producto.id] && (
                         <p className="font-semibold text-lg mb-2" style={{ color: '#FF6012' }}>
@@ -339,6 +519,23 @@ export default function CarritoPage() {
                       <p className="text-sm font-semibold" style={{ color: '#FF6012' }}>
                         Si no se confirma la venta en el tiempo indicado, la reserva se cancelará automáticamente y el producto volverá a estar disponible.
                       </p>
+                       <p className="text-sm font-semibold" style={{ color: '#1F0354' }}>
+                        Para confirmar tu compra, realizá la transferencia a:
+                      </p>
+                      <div className="mt-2 p-3 rounded" style={{ backgroundColor: '#FFF' }}>
+                        <p className="text-sm font-bold mb-1" style={{ color: '#FF6012' }}>
+                          💳 Mercado Pago
+                        </p>
+                        <p className="text-sm font-semibold" style={{ color: '#1F0354' }}>
+                          Alias: <span style={{ color: '#FF5BC7' }}>fimu.vintage</span>
+                        </p>
+                        <p className="text-sm font-semibold" style={{ color: '#1F0354' }}>
+                          Nombre: <span style={{ color: '#FF5BC7' }}>Elias Teruel</span>
+                        </p>
+                        <p className="text-xs mt-2" style={{ color: '#5E18EB' }}>
+                          📸 Una vez realizada la transferencia, enviá el comprobante por WhatsApp
+                        </p>
+                      </div>
                     </div>
                   )}
                   
@@ -400,29 +597,49 @@ export default function CarritoPage() {
                 </span>
               </div>
               
-              {/* Verificar si hay productos ya reservados */}
-              {items.some(item => item.producto.estado === 'reservado') ? (
-                <div className="p-4 rounded-lg text-center" style={{ backgroundColor: '#FFF4E6', color: '#FF6012' }}>
-                  <p className="font-bold">⏱️ Productos Reservados</p>
-                  <p className="text-sm mt-1">
-                    Esperando confirmación del pago por parte del vendedor
-                  </p>
-                </div>
-              ) : (
-                <button
-                  onClick={procederAlPago}
-                  disabled={procesandoPago}
-                  className="w-full py-4 rounded-lg font-bold text-white text-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{ backgroundColor: '#5E18EB' }}
-                >
-                  {procesandoPago ? (
-                    <>
-                      <Spinner size="sm" color="#ffffff" />
-                      <span>Procesando...</span>
-                    </>
-                  ) : '💳 Reservar Productos'}
-                </button>
-              )}
+              {/* Separar productos por estado */}
+              {(() => {
+                const productosDisponibles = items.filter(item => item.producto.estado === 'disponible')
+                const productosReservados = items.filter(item => item.producto.estado === 'reservado')
+                const hayDisponibles = productosDisponibles.length > 0
+                const hayReservados = productosReservados.length > 0
+
+                return (
+                  <>
+                    {/* Botón para reservar productos disponibles */}
+                    {hayDisponibles && (
+                      <button
+                        onClick={procederAlPago}
+                        disabled={procesandoPago}
+                        className="w-full py-4 rounded-lg font-bold text-white text-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mb-4"
+                        style={{ backgroundColor: '#5E18EB' }}
+                      >
+                        {procesandoPago ? (
+                          <>
+                            <Spinner size="sm" color="#ffffff" />
+                            <span>Procesando...</span>
+                          </>
+                        ) : `💳 Reservar ${productosDisponibles.length} Producto${productosDisponibles.length > 1 ? 's' : ''}`}
+                      </button>
+                    )}
+
+                    {/* Mensaje de productos reservados */}
+                    {hayReservados && (
+                      <div className="p-4 rounded-lg text-center" style={{ backgroundColor: '#FFF4E6', color: '#FF6012' }}>
+                        <p className="font-bold">⏱️ {productosReservados.length} Producto{productosReservados.length > 1 ? 's' : ''} Reservado{productosReservados.length > 1 ? 's' : ''}</p>
+                        <p className="text-sm mt-1">
+                          Esperando confirmación del pago por parte del vendedor
+                        </p>
+                        {hayDisponibles && (
+                          <p className="text-sm mt-2 font-semibold">
+                            ⬆️ Podés agregar más productos a tu reserva
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           </>
         )}
@@ -443,6 +660,13 @@ export default function CarritoPage() {
           message={confirmConfig.message}
           onConfirm={confirmConfig.onConfirm}
           onCancel={() => setConfirmConfig(null)}
+        />
+      )}
+
+      {mostrarContactoModal && (
+        <ContactoModal
+          onClose={() => setMostrarContactoModal(false)}
+          onSubmit={confirmarReservaConDatos}
         />
       )}
     </div>

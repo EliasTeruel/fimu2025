@@ -3,6 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState, useCallback } from "react"
+import { createClient } from '@/lib/supabase/client'
 import ProductoModal from "./components/ProductoModal"
 import ProductoSkeleton from "./components/ProductoSkeleton"
 import { getSessionId } from "@/lib/session"
@@ -29,18 +30,48 @@ interface Producto {
 }
 
 export default function Home() {
+  const supabase = createClient()
   const [productos, setProductos] = useState<Producto[]>([])
   const [productoSeleccionado, setProductoSeleccionado] = useState<Producto | null>(null)
   const [modalAbierto, setModalAbierto] = useState(false)
   const [cantidadCarrito, setCantidadCarrito] = useState(0)
   const [cargando, setCargando] = useState(true)
   const [sessionId, setSessionId] = useState<string>('')
+  const [userLoggedIn, setUserLoggedIn] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   // Inicializar sessionId al montar el componente
   useEffect(() => {
     const id = getSessionId()
     setSessionId(id)
   }, [])
+
+  // Verificar si hay usuario logueado y si es admin
+  useEffect(() => {
+    async function verificarUsuario() {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        setUserLoggedIn(true)
+        
+        // Verificar si es admin
+        try {
+          const res = await fetch(`/api/usuarios?supabaseId=${user.id}`)
+          if (res.ok) {
+            const usuario = await res.json()
+            setIsAdmin(usuario.isAdmin)
+          }
+        } catch (error) {
+          console.error('Error al verificar admin:', error)
+        }
+      } else {
+        setUserLoggedIn(false)
+        setIsAdmin(false)
+      }
+    }
+    
+    verificarUsuario()
+  }, [supabase])
 
   useEffect(() => {
     async function cargarDatos() {
@@ -115,6 +146,13 @@ export default function Home() {
     return producto.imagenUrl || '/placeholder.png'
   }, [])
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setUserLoggedIn(false)
+    setIsAdmin(false)
+    window.location.reload() // Recargar la página para reflejar cambios
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#FFC3E5' }}>
       {/* Header */}
@@ -138,20 +176,50 @@ export default function Home() {
                 </span>
               )}
             </Link>
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
-              style={{ color: '#D1ECFF' }}
-            >
-              Iniciar Sesión
-            </Link>
-            <Link
-              href="/admin"
-              className="px-4 py-2 text-sm font-medium text-white rounded-md hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: '#5E18EB' }}
-            >
-              Admin
-            </Link>
+            
+            {/* Mi Perfil - solo si está logueado */}
+            {userLoggedIn && (
+              <Link
+                href="/perfil"
+                className="px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
+                style={{ color: '#D1ECFF' }}
+              >
+                Mi Perfil
+              </Link>
+            )}
+            
+            {/* Iniciar Sesión - solo si NO está logueado */}
+            {!userLoggedIn && (
+              <Link
+                href="/login"
+                className="px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
+                style={{ color: '#D1ECFF' }}
+              >
+                Iniciar Sesión
+              </Link>
+            )}
+            
+            {/* Admin - solo si es admin */}
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="px-4 py-2 text-sm font-medium text-white rounded-md hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: '#5E18EB' }}
+              >
+                Admin
+              </Link>
+            )}
+            
+            {/* Cerrar Sesión - solo si está logueado */}
+            {userLoggedIn && (
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 text-sm font-medium text-white rounded-md hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: '#FF6012' }}
+              >
+                Cerrar Sesión
+              </button>
+            )}
           </nav>
         </div>
       </header>

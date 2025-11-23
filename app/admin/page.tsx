@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { CldUploadWidget } from 'next-cloudinary'
-import { User } from '@supabase/supabase-js'
 import Spinner from '../components/Spinner'
 import Alert from '../components/Alert'
 import Confirm from '../components/Confirm'
@@ -28,7 +27,6 @@ interface Producto {
 }
 
 export default function AdminPage() {
-  const [user, setUser] = useState<User | null>(null)
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -57,10 +55,54 @@ export default function AdminPage() {
 
       if (!user) {
         router.push('/login')
-      } else {
-        setUser(user)
-        setLoading(false)
+        return
       }
+
+      // Verificar si el usuario es admin
+      try {
+        const res = await fetch(`/api/usuarios?supabaseId=${user.id}`)
+        if (res.ok) {
+          const usuario = await res.json()
+          if (!usuario.isAdmin) {
+            setAlertConfig({
+              show: true,
+              message: 'No tienes permisos para acceder a esta página.',
+              type: 'error',
+              title: 'Acceso denegado'
+            })
+            setTimeout(() => {
+              router.push('/')
+            }, 2000)
+            return
+          }
+        } else {
+          // Usuario no encontrado en la base de datos
+          setAlertConfig({
+            show: true,
+            message: 'Usuario no encontrado en el sistema.',
+            type: 'error',
+            title: 'Error'
+          })
+          setTimeout(() => {
+            router.push('/')
+          }, 2000)
+          return
+        }
+      } catch (error) {
+        console.error('Error al verificar permisos:', error)
+        setAlertConfig({
+          show: true,
+          message: 'Error al verificar permisos.',
+          type: 'error',
+          title: 'Error'
+        })
+        setTimeout(() => {
+          router.push('/')
+        }, 2000)
+        return
+      }
+
+      setLoading(false)
 
       try {
         const res = await fetch('/api/productos')
