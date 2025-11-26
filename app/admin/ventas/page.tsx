@@ -3,11 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link'
-import Image from 'next/image'
 import Spinner from '../../components/Spinner'
+
+import Image from 'next/image'
 import Alert from '../../components/Alert'
 import Confirm from '../../components/Confirm'
+import Navbar from '../../components/Navbar'
+import LoadingScreen from '../../components/LoadingScreen'
 
 interface ProductoImagen {
   id: number
@@ -386,11 +388,7 @@ export default function VentasAdminPage() {
   })
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFC3E5' }}>
-        <p className="text-xl font-semibold" style={{ color: '#1F0354' }}>Cargando...</p>
-      </div>
-    )
+    return <LoadingScreen message="Cargando ventas..." />
   }
 
   if (loading) {
@@ -411,29 +409,15 @@ export default function VentasAdminPage() {
   }
 
   return (
-    <div className="min-h-screen p-6" style={{ backgroundColor: '#FFC3E5' }}>
+    <>
+      <Navbar />
+      <div className="min-h-screen p-6" style={{ backgroundColor: '#FFC3E5', paddingTop: '120px' }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold" style={{ color: '#1F0354' }}>
             📊 Gestión de Ventas
           </h1>
-          <div className="flex gap-3">
-            <Link
-              href="/admin"
-              className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: '#5E18EB' }}
-            >
-              ← Productos
-            </Link>
-            <Link
-              href="/"
-              className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: '#FF5BC7' }}
-            >
-              🏠 Tienda
-            </Link>
-          </div>
         </div>
 
         {/* Filtros */}
@@ -735,6 +719,7 @@ export default function VentasAdminPage() {
           onCancel={() => setConfirmConfig(null)}
         />
       )}
-    </div>
+      </div>
+    </>
   )
 }

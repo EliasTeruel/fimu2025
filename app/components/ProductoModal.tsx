@@ -6,6 +6,7 @@ import Spinner from './Spinner'
 import Alert from './Alert'
 import { getSessionId } from '@/lib/session'
 import { createClient } from '@/lib/supabase/client'
+import { CloudinaryPresets } from '@/lib/cloudinary-utils'
 
 interface ProductoImagen {
   id: number
@@ -42,6 +43,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
   const [agregando, setAgregando] = useState(false)
   const [imagenesCargadas, setImagenesCargadas] = useState(false)
   const [tiempoRestante, setTiempoRestante] = useState<string>('')
+  const [fullscreen, setFullscreen] = useState(false)
   const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
 
   // Distancia mínima para considerar un swipe
@@ -156,7 +158,12 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
         }
       }
 
-      const body: any = {
+      const body: {
+        productoId: number;
+        cantidad: number;
+        sessionId?: string;
+        usuarioId?: number;
+      } = {
         productoId: producto.id,
         cantidad: 1, // Siempre 1 unidad
         sessionId: sessionId || undefined // Evitar enviar string vacío
@@ -224,15 +231,18 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)' }}
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <>
+      {/* Modal principal */}
+      {!fullscreen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)' }}
+          onClick={onClose}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
         {/* Header */}
         <div className="sticky top-0 z-10 flex justify-between items-center p-4 border-b-2" style={{ backgroundColor: '#1F0354', borderColor: '#FFC3E5' }}>
           <h2 className="text-xl font-bold" style={{ color: '#D1ECFF' }}>{producto.nombre}</h2>
@@ -259,14 +269,20 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
                 <Spinner size="lg" color="#5E18EB" />
               </div>
             )}
-            <div className="relative h-80 w-full">
+            <div 
+              className="relative h-80 w-full cursor-zoom-in" 
+              onClick={() => setFullscreen(true)}
+              title="Click para ver en pantalla completa"
+            >
               <Image
-                src={imagenes[imagenActual].url}
+                src={CloudinaryPresets.productModal(imagenes[imagenActual].url)}
                 alt={producto.nombre}
                 fill
                 className="object-contain p-4"
                 sizes="(max-width: 768px) 100vw, 50vw"
+                loading="lazy"
                 onLoadingComplete={() => setImagenesCargadas(true)}
+                unoptimized
               />
             </div>
 
@@ -414,7 +430,102 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
              '🛒 Agregar al Carrito'}
           </button>
         </div>
-      </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de pantalla completa */}
+      {fullscreen && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black"
+          onClick={() => setFullscreen(false)}
+        >
+          {/* Botón cerrar */}
+          <button
+            onClick={() => setFullscreen(false)}
+            className="absolute top-4 right-4 z-10 w-12 h-12 rounded-full flex items-center justify-center text-3xl font-bold hover:opacity-80 transition-opacity"
+            style={{ backgroundColor: 'rgba(255, 91, 199, 0.9)', color: 'white' }}
+          >
+            ×
+          </button>
+
+          {/* Contador de imágenes */}
+          {imagenes.length > 1 && (
+            <div className="absolute top-4 left-4 z-10 px-4 py-2 rounded-full font-semibold text-lg" style={{ backgroundColor: 'rgba(31, 3, 84, 0.8)', color: '#D1ECFF' }}>
+              {imagenActual + 1} / {imagenes.length}
+            </div>
+          )}
+
+          {/* Imagen en pantalla completa */}
+          <div 
+            className="relative w-full h-full"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+          >
+            <Image
+              src={imagenes[imagenActual].url}
+              alt={producto.nombre}
+              fill
+              className="object-contain"
+              sizes="100vw"
+              quality={100}
+              unoptimized
+            />
+          </div>
+
+          {/* Controles de navegación */}
+          {imagenes.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  anteriorImagen()
+                }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full flex items-center justify-center font-bold text-3xl hover:opacity-80 transition-opacity z-10"
+                style={{ backgroundColor: 'rgba(94, 24, 235, 0.9)', color: 'white' }}
+              >
+                ‹
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  siguienteImagen()
+                }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full flex items-center justify-center font-bold text-3xl hover:opacity-80 transition-opacity z-10"
+                style={{ backgroundColor: 'rgba(94, 24, 235, 0.9)', color: 'white' }}
+              >
+                ›
+              </button>
+
+              {/* Indicadores */}
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                {imagenes.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setImagenActual(index)
+                    }}
+                    className="w-3 h-3 rounded-full transition-all"
+                    style={{
+                      backgroundColor: index === imagenActual ? '#FF5BC7' : '#FFC3E5',
+                      width: index === imagenActual ? '32px' : '12px'
+                    }}
+                    aria-label={`Ir a imagen ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Hint de cerrar */}
+          <div className="absolute bottom-4 right-4 px-4 py-2 rounded-lg text-sm font-medium z-10" style={{ backgroundColor: 'rgba(31, 3, 84, 0.8)', color: '#D1ECFF' }}>
+            Click para cerrar
+          </div>
+        </div>
+      )}
 
       {alertConfig?.show && (
         <Alert
@@ -424,6 +535,6 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
           onClose={() => setAlertConfig(null)}
         />
       )}
-    </div>
+    </>
   )
 }

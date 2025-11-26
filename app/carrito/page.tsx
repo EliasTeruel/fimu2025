@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -8,8 +8,11 @@ import Spinner from '../components/Spinner'
 import Alert from '../components/Alert'
 import Confirm from '../components/Confirm'
 import ContactoModal, { ContactoData } from '../components/ContactoModal'
+import LoadingScreen from '../components/LoadingScreen'
 import { calcularTiempoRestante, obtenerMensajeExpiracion } from '@/lib/reserva-utils'
 import { getSessionId } from '@/lib/session'
+import { CloudinaryPresets } from '@/lib/cloudinary-utils'
+import Navbar from '../components/Navbar'
 
 interface ProductoImagen {
   id: number
@@ -112,6 +115,7 @@ export default function CarritoPage() {
     }
     
     verificarUsuario()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, sessionId])
 
   // Calcular tiempo restante para productos reservados
@@ -160,24 +164,7 @@ export default function CarritoPage() {
     return () => clearInterval(interval)
   }, [items])
 
-  useEffect(() => {
-    if (sessionId) {
-      cargarCarrito()
-    }
-  }, [sessionId, userLoggedIn]) // Recargar cuando cambia el estado de login
-
-  // Recargar carrito cada 10 segundos para actualizar estados (pausas, expiraciones, etc)
-  useEffect(() => {
-    if (!sessionId) return
-
-    const interval = setInterval(() => {
-      cargarCarrito()
-    }, 10000) // Cada 10 segundos
-
-    return () => clearInterval(interval)
-  }, [sessionId])
-
-  const cargarCarrito = async () => {
+  const cargarCarrito = useCallback(async () => {
     if (!sessionId) {
       console.log('⚠️ No hay sessionId, no se puede cargar carrito')
       return
@@ -222,7 +209,24 @@ export default function CarritoPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sessionId, supabase])
+
+  useEffect(() => {
+    if (sessionId) {
+      cargarCarrito()
+    }
+  }, [sessionId, userLoggedIn, cargarCarrito]) // Recargar cuando cambia el estado de login
+
+  // Recargar carrito cada 10 segundos para actualizar estados (pausas, expiraciones, etc)
+  useEffect(() => {
+    if (!sessionId) return
+
+    const interval = setInterval(() => {
+      cargarCarrito()
+    }, 10000) // Cada 10 segundos
+
+    return () => clearInterval(interval)
+  }, [sessionId, cargarCarrito])
 
   const obtenerImagenPrincipal = (producto: Producto): string => {
     const imagenPrincipal = producto.imagenes?.find(img => img.esPrincipal)
@@ -341,9 +345,6 @@ export default function CarritoPage() {
       const productosNuevos = items.filter(item => item.producto.estado === 'disponible')
       const productosYaReservados = items.filter(item => item.producto.estado === 'reservado')
       
-      // Todos los IDs (para enviar en WhatsApp)
-      const todosLosProductosIds = items.map(item => item.productoId)
-      
       // Solo reservar si hay productos nuevos
       if (productosNuevos.length > 0) {
         const productosNuevosIds = productosNuevos.map(item => item.productoId)
@@ -432,17 +433,15 @@ export default function CarritoPage() {
   }
 
   if (cargando) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFC3E5' }}>
-        <p className="text-xl font-semibold" style={{ color: '#1F0354' }}>Cargando carrito...</p>
-      </div>
-    )
+    return <LoadingScreen message="Cargando carrito..." />
   }
 
   return (
-    <div className="min-h-screen p-4" style={{ backgroundColor: '#FFC3E5' }}>
-      {/* Header */}
-      <div className="max-w-4xl mx-auto mb-6">
+    <>
+      <Navbar cantidadCarrito={items.length} />
+      <div className="min-h-screen p-4" style={{ backgroundColor: '#FFC3E5', paddingTop: '120px' }}>
+        {/* Header */}
+        <div className="max-w-4xl mx-auto mb-6">
         <div className="flex items-center justify-between mb-4">
           <Link 
             href="/"
@@ -543,10 +542,11 @@ export default function CarritoPage() {
                     {/* Imagen */}
                     <div className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden" style={{ backgroundColor: '#D1ECFF' }}>
                       <Image
-                        src={obtenerImagenPrincipal(item.producto)}
+                        src={CloudinaryPresets.thumbnail(obtenerImagenPrincipal(item.producto))}
                         alt={item.producto.nombre}
                         fill
                         className="object-cover"
+                        loading="lazy"
                         unoptimized
                       />
                     </div>
@@ -669,6 +669,7 @@ export default function CarritoPage() {
           onSubmit={confirmarReservaConDatos}
         />
       )}
-    </div>
+      </div>
+    </>
   )
 }

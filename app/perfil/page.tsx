@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import Spinner from '../components/Spinner'
 import Alert from '../components/Alert'
+import Navbar from '../components/Navbar'
+import LoadingScreen from '../components/LoadingScreen'
+import Spinner from '../components/Spinner'
 
 interface Usuario {
   id: number
@@ -143,16 +145,14 @@ export default function PerfilPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#D1ECFF' }}>
-        <Spinner />
-      </div>
-    )
+    return <LoadingScreen backgroundColor="#D1ECFF" textColor="#5E18EB" />
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#D1ECFF' }}>
-      {/* Alert */}
+    <>
+      <Navbar />
+      <div className="min-h-screen" style={{ backgroundColor: '#D1ECFF', paddingTop: '100px' }}>
+        {/* Alert */}
       {alertConfig?.show && (
         <Alert
           message={alertConfig.message}
@@ -341,6 +341,7 @@ export default function PerfilPage() {
           </div>
         </form>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

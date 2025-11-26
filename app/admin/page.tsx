@@ -5,9 +5,11 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { CldUploadWidget } from 'next-cloudinary'
-import Spinner from '../components/Spinner'
 import Alert from '../components/Alert'
 import Confirm from '../components/Confirm'
+import Navbar from '../components/Navbar'
+import LoadingScreen from '../components/LoadingScreen'
+import Spinner from '../components/Spinner'
 
 interface ProductoImagen {
   id?: number
@@ -136,10 +138,7 @@ export default function AdminPage() {
     }
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/')
-  }
+
 
   const resetForm = () => {
     setNombre('')
@@ -191,19 +190,6 @@ export default function AdminPage() {
     })
   }
 
-  const agregarMultiplesImagenes = (urls: string[]) => {
-    // Filtrar URLs que ya existen
-    const urlsExistentes = imagenes.map(img => img.url)
-    const urlsNuevas = urls.filter(url => !urlsExistentes.includes(url))
-    
-    const nuevasImagenes: ProductoImagen[] = urlsNuevas.map((url, index) => ({
-      url,
-      esPrincipal: imagenes.length === 0 && index === 0, // Primera imagen es principal si no hay otras
-      orden: imagenes.length + index
-    }))
-    
-    setImagenes([...imagenes, ...nuevasImagenes])
-  }
 
   const marcarComoPrincipal = (index: number) => {
     console.log('Marcando imagen', index, 'como principal')
@@ -308,64 +294,30 @@ export default function AdminPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#D1ECFF' }}>
-        <div className="text-center">
-          <Spinner size="lg" color="#5E18EB" />
-          <p className="mt-4" style={{ color: '#5E18EB', fontSize: '18px', fontWeight: 'bold' }}>Cargando...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen backgroundColor="#D1ECFF" textColor="#5E18EB" />
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#D1ECFF' }}>
-      {/* Header */}
-      <header className="shadow-lg" style={{ backgroundColor: '#1F0354' }}>
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold" style={{ color: '#D1ECFF' }}>
-              Panel 
-            </h1>
-            {/* <p className="text-sm mt-1" style={{ color: '#FFC3E5' }}>
-              Bienvenido, {user?.email}
-            </p> */}
-          </div>
-          <div className="flex gap-4">
-            <button
-              onClick={() => router.push('/admin/ventas')}
-              className="px-4 py-2 text-sm font-medium text-white rounded-md hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: '#FF5BC7' }}
-            >
-              📊 Ventas
-            </button>
-            <button
-              onClick={() => router.push('/')}
-              className="px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
-              style={{ color: '#D1ECFF' }}
-            >
-              Tienda
-            </button>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium text-white rounded-md hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: '#FF6012' }}
-            >
-              Cerrar Sesión
-            </button>
-          </div>
+    <>
+      <Navbar />
+      <div className="min-h-screen" style={{ backgroundColor: '#D1ECFF', paddingTop: '100px' }}>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6 pt-6">
+          <h1 className="text-3xl font-bold" style={{ color: '#1F0354' }}>
+            📊 Productos
+          </h1>
         </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         {/* Botón para mostrar formulario */}
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="mb-8 px-6 py-3 text-white rounded-md hover:opacity-90 transition-opacity font-medium"
+            className="mb-8 px-8 py-3 text-white rounded-lg hover:scale-105 transition-all font-semibold text-lg shadow-lg flex items-center gap-2"
             style={{ backgroundColor: '#5E18EB' }}
           >
-            + Agregar Nuevo Producto
+            <span className="text-2xl">+</span>
+            <span>Agregar Nuevo Producto</span>
           </button>
         )}
 
@@ -554,10 +506,10 @@ export default function AdminPage() {
 
         {/* Lista de productos */}
         <div className="bg-white rounded-lg shadow overflow-hidden border-2" style={{ borderColor: '#FFC3E5' }}>
-          <div className="px-6 py-4 border-b" style={{ borderColor: '#FFC3E5', backgroundColor: '#D1ECFF' }}>
+          {/* <div className="px-6 py-4 border-b" style={{ borderColor: '#FFC3E5', backgroundColor: '#D1ECFF' }}>
             <h2 className="text-lg font-semibold" style={{ color: '#1F0354' }}>Productos</h2>
-          </div>
-          {productos.length === 0 ? (
+          </div> */}
+          {productos.length === 0 && !loading ? (
             <div className="p-6 text-center" style={{ color: '#5E18EB' }}>
               No hay productos. Agrega tu primer producto.
             </div>
@@ -613,12 +565,12 @@ export default function AdminPage() {
                         <div className="text-sm font-medium" style={{ color: '#1F0354' }}>
                           {producto.nombre}
                         </div>
-                        {producto.descripcion && (
+                        {/* {producto.descripcion && (
                           <div className="text-sm" style={{ color: '#5E18EB' }}>
                             {producto.descripcion.substring(0, 50)}
                             {producto.descripcion.length > 50 ? '...' : ''}
                           </div>
-                        )}
+                        )} */}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold" style={{ color: '#5E18EB' }}>
                         ${producto.precio.toFixed(2)}
@@ -694,6 +646,7 @@ export default function AdminPage() {
           onCancel={() => setConfirmConfig(null)}
         />
       )}
-    </div>
+      </div>
+    </>
   )
 }
