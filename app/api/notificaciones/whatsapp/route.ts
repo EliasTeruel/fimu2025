@@ -58,53 +58,57 @@ Por favor contacta al cliente para confirmar el pago.
     console.log('Auth Token:', authToken ? 'CONFIGURADO' : 'NO CONFIGURADO')
     console.log('Twilio Phone:', twilioPhone || 'NO CONFIGURADO')
     
-    // ⚠️ COMENTADO PARA PRUEBAS - No enviar WhatsApp real
-    /*
+    // ✅ ACTIVADO PARA PRUEBAS - Envío de WhatsApp ACTIVO
+    // 🔧 CAMBIAR ESTE NÚMERO PARA TUS PRUEBAS:
+    const numeroPrueba = '+5491172374065' // ⬅️ CAMBIA AQUÍ TU NÚMERO (formato: +54911...)
+    
     if (accountSid && authToken && twilioPhone) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const twilio = require('twilio')
       const client = twilio(accountSid, authToken)
       
       try {
         console.log('📤 Enviando mensaje WhatsApp...')
         console.log('Desde:', twilioPhone)
-        console.log('Para:', `whatsapp:${adminPhone}`)
+        console.log('Para:', `whatsapp:${numeroPrueba}`) // Usando número de prueba
         
         const result = await client.messages.create({
           from: twilioPhone,
-          to: `whatsapp:${adminPhone}`,
+          to: `whatsapp:${numeroPrueba}`, // Enviando a número de prueba
           body: mensaje
         })
         
         console.log('✅ Mensaje WhatsApp enviado exitosamente!')
         console.log('Message SID:', result.sid)
         console.log('Status:', result.status)
+        console.log('⚠️ Número usado para prueba:', numeroPrueba)
         
         return NextResponse.json({ 
           success: true, 
-          message: 'Notificación enviada por WhatsApp',
+          message: 'Notificación enviada por WhatsApp (MODO PRUEBA)',
           messageSid: result.sid,
-          status: result.status
+          status: result.status,
+          testNumber: numeroPrueba
         })
       } catch (error) {
         console.error('❌ Error al enviar WhatsApp con Twilio:', error)
         throw error
       }
     } else {
-    */
       // MODO PRUEBA - Solo mostrar en consola
-      console.warn('⚠️ MODO PRUEBA - WhatsApp NO se enviará (código comentado)')
+      console.warn('⚠️ MODO PRUEBA - WhatsApp NO se enviará (faltan credenciales)')
       console.log('📱 Vista previa del mensaje que se enviaría:', {
-        destino: adminPhone,
+        destino: numeroPrueba,
         mensaje,
         cliente: clienteNombre
       })
       
       return NextResponse.json({ 
         success: true, 
-        message: 'Modo prueba - Notificación simulada (no se envió WhatsApp real)',
+        message: 'Modo prueba - Notificación simulada (faltan credenciales de Twilio)',
         preview: mensaje
       })
-    // }
+    }
   } catch (error) {
     console.error('❌ Error al enviar notificación WhatsApp:', error)
     return NextResponse.json(
