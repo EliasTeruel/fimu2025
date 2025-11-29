@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { nombre, descripcion, precio, stock, imagenUrl, imagenes } = body
+    const { nombre, descripcion, precio, stock, imagenUrl, imagenes, categoria } = body
 
     // Validaciones
     if (!nombre || precio === undefined) {
@@ -72,6 +72,7 @@ export async function POST(request: Request) {
         precio: parseFloat(precio),
         stock: parseInt(stock) || 0,
         imagenUrl,
+        categoria: categoria || 'fimu',
         imagenes: imagenes?.length ? {
           create: imagenes.map((img: { url: string; esPrincipal: boolean; orden: number }) => ({
             url: img.url,

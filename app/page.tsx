@@ -1,34 +1,14 @@
 'use client'
 
-import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState, useCallback, useRef } from "react"
 import ProductoModal from "./components/ProductoModal"
 import ProductoSkeleton from "./components/ProductoSkeleton"
+import ProductoCard, { Producto } from "./components/ProductoCard"
+import ProductoGrid from "./components/ProductoGrid"
+import MantenimientoScreen from "./components/MantenimientoScreen"
 import { getSessionId } from "@/lib/session"
-import { CloudinaryPresets } from "@/lib/cloudinary-utils"
 import { useAuth } from './contexts/AuthContext'
-
-interface ProductoImagen {
-  id: number
-  url: string
-  esPrincipal: boolean
-  orden: number
-}
-
-interface Producto {
-  id: number
-  nombre: string
-  descripcion: string | null
-  precio: number
-  stock: number
-  imagenUrl: string | null
-  imagenes?: ProductoImagen[]
-  estado?: string
-  reservadoEn?: Date | null
-  compradorInfo?: string | null
-  createdAt: Date
-}
 
 // 🔧 CONFIGURACIÓN: Cantidad de productos por página (scroll infinito)
 const PRODUCTOS_POR_PAGINA = 3 // Cambiá este número: 3, 5, 10, 20, etc.
@@ -46,11 +26,39 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(true)
   const observerTarget = useRef<HTMLDivElement>(null)
   const [menuAbierto, setMenuAbierto] = useState(false)
+  const [categoriaActual, setCategoriaActual] = useState<'fimu' | 'perchero'>('fimu')
+  const [categoriasVisibles, setCategoriasVisibles] = useState<Array<{
+    categoria: string
+    nombreMostrar: string
+    icono: string | null
+  }>>([])
 
   // Inicializar sessionId al montar el componente
   useEffect(() => {
     const id = getSessionId()
     setSessionId(id)
+  }, [])
+
+  // Cargar categorías visibles
+  useEffect(() => {
+    async function cargarCategorias() {
+      try {
+        const res = await fetch('/api/configuracion/categorias')
+        if (res.ok) {
+          const data = await res.json()
+          const visibles = data.filter((cat: { visible: boolean }) => cat.visible)
+          setCategoriasVisibles(visibles)
+          // Si la categoría actual no está visible, cambiar a la primera visible
+          if (visibles.length > 0 && !visibles.find((c: { categoria: string }) => c.categoria === categoriaActual)) {
+            setCategoriaActual(visibles[0].categoria)
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar categorías:', error)
+      }
+    }
+    cargarCategorias()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -61,7 +69,7 @@ export default function Home() {
         setCargando(true)
         // Cargar productos y contador en paralelo para ser más rápido
         const [productosRes, carritoRes] = await Promise.all([
-          fetch(`/api/productos/publico?page=1&limit=${PRODUCTOS_POR_PAGINA}`, { 
+          fetch(`/api/productos/publico?page=1&limit=${PRODUCTOS_POR_PAGINA}&categoria=${categoriaActual}`, { 
             cache: 'no-store' // Sin caché para obtener todos los productos
           }),
           fetch(`/api/carrito/count?sessionId=${sessionId}`, {
@@ -86,7 +94,7 @@ export default function Home() {
       }
     }
     cargarDatos()
-  }, [sessionId])
+  }, [sessionId, categoriaActual]) // Recargar cuando cambie la categoría
 
   // Cargar más productos (scroll infinito)
   const cargarMasProductos = useCallback(async () => {
@@ -95,7 +103,7 @@ export default function Home() {
     try {
       setCargandoMas(true)
       const nextPage = page + 1
-      const res = await fetch(`/api/productos/publico?page=${nextPage}&limit=${PRODUCTOS_POR_PAGINA}`)
+      const res = await fetch(`/api/productos/publico?page=${nextPage}&limit=${PRODUCTOS_POR_PAGINA}&categoria=${categoriaActual}`)
       
       if (res.ok) {
         const data = await res.json()
@@ -108,7 +116,7 @@ export default function Home() {
     } finally {
       setCargandoMas(false)
     }
-  }, [page, hasMore, cargandoMas])
+  }, [page, hasMore, cargandoMas, categoriaActual])
 
   // Intersection Observer para scroll infinito
   useEffect(() => {
@@ -154,15 +162,6 @@ export default function Home() {
       }
     }
   }, [sessionId])
-
-  // Obtener imagen principal o la primera imagen disponible (memoizada)
-  const obtenerImagenPrincipal = useCallback((producto: Producto): string => {
-    if (producto.imagenes && producto.imagenes.length > 0) {
-      const imagenPrincipal = producto.imagenes.find(img => img.esPrincipal)
-      return imagenPrincipal?.url || producto.imagenes[0].url
-    }
-    return producto.imagenUrl || '/placeholder.png'
-  }, [])
 
   const handleLogout = async () => {
     await logout()
@@ -360,9 +359,58 @@ export default function Home() {
       {/* Main Content con padding-top para compensar el header fijo */}
       <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8" style={{ paddingTop: '120px' }}>
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold mb-2" style={{ color: '#1F0354' }}>
+          <h2 className="text-2xl font-semibold mb-2 text-center" style={{ color: '#1F0354' }}>
             🍂Tienda de ropa vintage,retro y segunda hand🍂
           </h2>
+          
+          {/* Botones de Categoría - Solo mostrar botones de categorías no activas */}
+          {categoriasVisibles.length > 1 && (
+            <div className="mb-6">
+              {categoriasVisibles
+                .filter((cat) => cat.categoria !== categoriaActual)
+                .map((cat) => (
+                <button
+                  key={cat.categoria}
+                  onClick={() => {
+                    setCategoriaActual(cat.categoria as 'fimu' | 'perchero')
+                    setPage(1)
+                    setProductos([])
+                  }}
+                  className="w-full py-6 rounded-xl font-bold transition-all hover:scale-[1.02] hover:shadow-2xl relative overflow-hidden group"
+                  style={{ 
+                    background: cat.categoria === 'fimu' 
+                      ? 'linear-gradient(135deg, #D1ECFF 0%, #5E18EB 100%)'
+                      : 'linear-gradient(135deg, #FFF0FB 0%, #FF5BC7 100%)',
+                    color: 'white'
+                  }}
+                >
+                  {/* Efecto de brillo al hover */}
+                  <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
+                  
+                  <div className="relative z-10 flex flex-col items-center gap-2">
+                    <span className="text-4xl">{cat.icono}</span>
+                    <span className="text-2xl">
+                      {cat.categoria === 'fimu' 
+                        ? '✨ Descubrí nuestra colección Fimu ✨'
+                        : '👗 Explorá el Perchero de tesoros 👗'
+                      }
+                    </span>
+                    <span className="text-sm opacity-90 font-normal">
+                      {cat.categoria === 'fimu'
+                        ? '🔥 Piezas únicas que cuentan historias'
+                        : '💕 Looks increíbles esperándote'
+                      }
+                    </span>
+                    {/* Indicador de click/tap */}
+                    <span className="text-sm opacity-80 font-normal mt-1 flex items-center gap-1">
+                      👆 Tocá para ver
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          
           <p style={{ color: '#5E18EB' }}>
             🚀 ENTREGAS zona sur y envíos a todo el pais
           </p>
@@ -380,7 +428,10 @@ export default function Home() {
             </p>
         </div>
 
-        {cargando ? (
+        {/* Modo Mantenimiento - Si no hay categorías visibles */}
+        {categoriasVisibles.length === 0 ? (
+          <MantenimientoScreen />
+        ) : cargando ? (
           /* Skeletons de carga */
           <div className="grid grid-cols-2 gap-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -401,76 +452,17 @@ export default function Home() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <ProductoGrid columns={{ mobile: 2, tablet: 3, desktop: 4 }} gap={4}>
             {productos.map((producto, index) => (
-              <div
+              <ProductoCard
                 key={producto.id}
-                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 border-2"
-                style={{ borderColor: '#FF5BC7' }}
-              >
-                <div className="relative h-48" style={{ backgroundColor: '#D1ECFF' }}>
-                  <Image
-                    src={CloudinaryPresets.productCard(obtenerImagenPrincipal(producto))}
-                    alt={producto.nombre}
-                    fill
-                    className="object-contain p-2"
-                    sizes="(max-width: 768px) 50vw, 25vw"
-                    priority={index < 4} // Cargar primeros 4 con prioridad
-                    loading={index < 4 ? undefined : 'lazy'} // Lazy load para el resto
-                    unoptimized
-                  />
-                </div>
-                <div className="p-3">
-                  <h3 className="text-base font-semibold mb-1 line-clamp-1" style={{ color: '#1F0354' }}>
-                    {producto.nombre}
-                  </h3>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xl font-bold" style={{ color: '#5E18EB' }}>
-                      ${producto.precio.toFixed(2)}
-                    </span>
-                    
-                    {/* Badge de Estado */}
-                    <span
-                      className="text-xs px-2 py-1 rounded-full font-semibold"
-                      style={{ 
-                        backgroundColor: 
-                          producto.estado === 'reservado' ? '#FFF4E6' : 
-                          producto.estado === 'vendido' ? '#E6FFE6' : 
-                          '#D1ECFF',
-                        color: 
-                          producto.estado === 'reservado' ? '#FF6012' : 
-                          producto.estado === 'vendido' ? '#00A86B' : 
-                          '#5E18EB'
-                      }}
-                    >
-                      {producto.estado === 'reservado' && '⏱️ Reservado'}
-                      {producto.estado === 'vendido' && '✅ Vendido'}
-                      {(!producto.estado || producto.estado === 'disponible') && '✓ Disponible'}
-                    </span>
-                    
-                    {/* Stock comentado - Solo 1 unidad por producto */}
-                    {/* <span
-                      className={`text-xs px-2 py-1 rounded-full font-semibold ${
-                        producto.stock > 0
-                          ? 'bg-green-100'
-                          : 'bg-red-100'
-                      }`}
-                      style={{ color: producto.stock > 0 ? '#5E18EB' : '#FF6012' }}
-                    >
-                      {producto.stock > 0 ? `Stock: ${producto.stock}` : 'Sin stock'}
-                    </span> */}
-                  </div>
-                  <button
-                    onClick={() => abrirModal(producto)}
-                    className="w-full py-2 rounded-md text-white font-semibold text-sm hover:opacity-90 transition-opacity"
-                    style={{ backgroundColor: '#5E18EB' }}
-                  >
-                    Ver más info
-                  </button>
-                </div>
-              </div>
+                producto={producto}
+                index={index}
+                onClick={abrirModal}
+                showStock={false}
+              />
             ))}
-          </div>
+          </ProductoGrid>
         )}
 
         {/* Indicador de carga para scroll infinito */}

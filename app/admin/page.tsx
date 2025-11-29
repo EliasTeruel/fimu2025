@@ -26,6 +26,7 @@ interface Producto {
   stock: number
   imagenUrl: string | null
   imagenes?: ProductoImagen[]
+  categoria?: string
 }
 
 export default function AdminPage() {
@@ -48,6 +49,17 @@ export default function AdminPage() {
   const [stock, setStock] = useState('')
   const [imagenUrl, setImagenUrl] = useState('')
   const [imagenes, setImagenes] = useState<ProductoImagen[]>([])
+  const [categoria, setCategoria] = useState('fimu')
+  
+  // Configuración de categorías
+  const [categoriasConfig, setCategoriasConfig] = useState<Array<{
+    id: number
+    categoria: string
+    visible: boolean
+    nombreMostrar: string
+    icono: string | null
+  }>>([])
+  const [mostrarConfig, setMostrarConfig] = useState(false)
 
   useEffect(() => {
     async function init() {
@@ -118,6 +130,17 @@ export default function AdminPage() {
         console.error('Error al cargar productos:', error)
         setProductos([])
       }
+      
+      // Cargar configuración de categorías
+      try {
+        const res = await fetch('/api/configuracion/categorias')
+        if (res.ok) {
+          const data = await res.json()
+          setCategoriasConfig(data)
+        }
+      } catch (error) {
+        console.error('Error al cargar configuración de categorías:', error)
+      }
     }
     init()
   }, [router, supabase])
@@ -147,6 +170,7 @@ export default function AdminPage() {
     setStock('1') // Stock por defecto en 1
     setImagenUrl('')
     setImagenes([])
+    setCategoria('fimu')
     setEditingId(null)
     setShowForm(false)
   }
@@ -162,6 +186,7 @@ export default function AdminPage() {
     setStock(producto.stock.toString())
     setImagenUrl(producto.imagenUrl || '')
     setImagenes(producto.imagenes || [])
+    setCategoria(producto.categoria || 'fimu')
     setShowForm(true)
     setEditandoId(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -219,7 +244,8 @@ export default function AdminPage() {
       precio: parseFloat(precio),
       stock: parseInt(stock),
       imagenUrl,
-      imagenes: imagenes.length > 0 ? imagenes : undefined
+      imagenes: imagenes.length > 0 ? imagenes : undefined,
+      categoria
     }
 
     setGuardando(true)
@@ -257,6 +283,35 @@ export default function AdminPage() {
       })
     } finally {
       setGuardando(false)
+    }
+  }
+
+  const toggleCategoriaVisible = async (categoria: string, visible: boolean) => {
+    try {
+      const res = await fetch('/api/configuracion/categorias', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoria, visible })
+      })
+
+      if (res.ok) {
+        // Actualizar estado local
+        setCategoriasConfig(prev =>
+          prev.map(cat => cat.categoria === categoria ? { ...cat, visible } : cat)
+        )
+        setAlertConfig({
+          show: true,
+          message: `Categoría ${visible ? 'mostrada' : 'ocultada'} exitosamente`,
+          type: 'success'
+        })
+      }
+    } catch (error) {
+      console.error('Error al actualizar categoría:', error)
+      setAlertConfig({
+        show: true,
+        message: 'Error al actualizar categoría',
+        type: 'error'
+      })
     }
   }
 
@@ -307,7 +362,57 @@ export default function AdminPage() {
           <h1 className="text-3xl font-bold" style={{ color: '#1F0354' }}>
             📊 Productos
           </h1>
+          <button
+            onClick={() => setMostrarConfig(!mostrarConfig)}
+            className="px-4 py-2 rounded-md text-white font-medium hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: '#FF5BC7' }}
+          >
+            ⚙️ {mostrarConfig ? 'Ocultar' : 'Configurar'} Categorías
+          </button>
         </div>
+
+        {/* Panel de Configuración de Categorías */}
+        {mostrarConfig && (
+          <div className="mb-6 bg-white p-6 rounded-lg shadow border-2" style={{ borderColor: '#FF5BC7' }}>
+            <h2 className="text-xl font-semibold mb-4" style={{ color: '#1F0354' }}>
+              ⚙️ Configuración de Categorías
+            </h2>
+            <p className="text-sm mb-4" style={{ color: '#5E18EB' }}>
+              Controla qué categorías se muestran en la página principal de la tienda
+            </p>
+            <div className="space-y-3">
+              {categoriasConfig.map((cat) => (
+                <div
+                  key={cat.id}
+                  className="flex items-center justify-between p-4 rounded-lg border-2"
+                  style={{ 
+                    borderColor: cat.visible ? '#5E18EB' : '#FFC3E5',
+                    backgroundColor: cat.visible ? '#F0ECFF' : '#FFF0FB'
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{cat.icono}</span>
+                    <div>
+                      <h3 className="font-semibold" style={{ color: '#1F0354' }}>
+                        {cat.nombreMostrar}
+                      </h3>
+                      <p className="text-sm" style={{ color: '#5E18EB' }}>
+                        {cat.visible ? '✓ Visible en la tienda' : '✗ Oculta de la tienda'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => toggleCategoriaVisible(cat.categoria, !cat.visible)}
+                    className="px-4 py-2 rounded-md text-white font-medium hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: cat.visible ? '#FF6012' : '#5E18EB' }}
+                  >
+                    {cat.visible ? '👁️ Ocultar' : '👁️ Mostrar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Botón para mostrar formulario */}
         {!showForm && (
@@ -383,6 +488,43 @@ export default function AdminPage() {
                     className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
                     style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
                   />
+                </div>
+              </div>
+
+              {/* Campo de Categoría */}
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: '#1F0354' }}>
+                  Categoría *
+                </label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="categoria"
+                      value="fimu"
+                      checked={categoria === 'fimu'}
+                      onChange={(e) => setCategoria(e.target.value)}
+                      className="w-4 h-4 cursor-pointer"
+                      style={{ accentColor: '#5E18EB' }}
+                    />
+                    <span className="text-sm font-medium" style={{ color: '#1F0354' }}>
+                      🛍️ Fimu (Tienda principal)
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="categoria"
+                      value="perchero"
+                      checked={categoria === 'perchero'}
+                      onChange={(e) => setCategoria(e.target.value)}
+                      className="w-4 h-4 cursor-pointer"
+                      style={{ accentColor: '#FF5BC7' }}
+                    />
+                    <span className="text-sm font-medium" style={{ color: '#1F0354' }}>
+                      👗 Perchero (Categoría especial)
+                    </span>
+                  </label>
                 </div>
               </div>
 

@@ -7,17 +7,25 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
+    const categoria = searchParams.get('categoria') || 'fimu' // Default: fimu
     const skip = (page - 1) * limit
+
+    // Filtro base por categoría
+    const whereClause = {
+      categoria: categoria
+    }
 
     // Obtener todos los productos ordenados por disponibilidad
     const [productosRaw, total] = await Promise.all([
       prisma.producto.findMany({
+        where: whereClause,
         select: {
           id: true,
           nombre: true,
           precio: true,
           imagenUrl: true,
           estado: true,
+          categoria: true,
           imagenes: {
             select: {
               id: true,
@@ -33,7 +41,7 @@ export async function GET(request: Request) {
         take: limit * 3, // Traer más para poder ordenar correctamente
         skip: 0
       }),
-      prisma.producto.count()
+      prisma.producto.count({ where: whereClause })
     ])
 
     // Ordenar: disponibles primero, luego por fecha

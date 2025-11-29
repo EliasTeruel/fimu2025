@@ -60,7 +60,8 @@ Por favor contacta al cliente para confirmar el pago.
     
     // ✅ ACTIVADO PARA PRUEBAS - Envío de WhatsApp ACTIVO
     // 🔧 CAMBIAR ESTE NÚMERO PARA TUS PRUEBAS:
-    const numeroPrueba = '+5491172374065' // ⬅️ CAMBIA AQUÍ TU NÚMERO (formato: +54911...)
+    // const numeroPrueba = '+5491172374065' // ⬅️ CAMBIA AQUÍ TU NÚMERO (formato: +54911...)
+    const numeroPrueba = '+5491123882449' // ⬅️ CAMBIA AQUÍ TU NÚMERO (formato: +54911...)
     
     if (accountSid && authToken && twilioPhone) {
       // eslint-disable-next-line @typescript-eslint/no-require-imports

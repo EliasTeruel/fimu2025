@@ -20,6 +20,7 @@ model Producto {
   imagenUrl   String?          // Mantener por compatibilidad
   imagenes    ProductoImagen[]
   carrito     CarritoItem[]
+  categoria   String           @default("fimu") // fimu, perchero, etc.
   estado      String           @default("disponible") // disponible, reservado, vendido
   reservadoEn DateTime?        @map("reservado_en") // Timestamp cuando se dio click en Pagar
   compradorInfo String?        @map("comprador_info") // Info del comprador (nombre, contacto, etc)
@@ -30,6 +31,7 @@ model Producto {
 
   @@index([estado]) // Índice para filtrar por estado
   @@index([createdAt]) // Índice para ordenar por fecha
+  @@index([categoria]) // Índice para filtrar por categoría
   @@map("productos")
 }
 
@@ -85,4 +87,19 @@ model Usuario {
   @@index([supabaseId])
   @@index([isAdmin])
   @@map("usuarios")
+}
+
+model ConfiguracionCategoria {
+  id             Int      @id @default(autoincrement())
+  categoria      String   @unique
+  visible        Boolean  @default(true)
+  nombreMostrar  String   @map("nombre_mostrar")
+  icono          String?
+  orden          Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([categoria])
+  @@index([visible])
+  @@map("configuracion_categorias")
 }

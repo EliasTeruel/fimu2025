@@ -52,7 +52,7 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { nombre, descripcion, precio, stock, imagenUrl, imagenes } = body
+    const { nombre, descripcion, precio, stock, imagenUrl, imagenes, categoria } = body
 
     // Primero eliminar imágenes existentes si se envían nuevas
     if (imagenes) {
@@ -69,6 +69,7 @@ export async function PUT(
         precio: parseFloat(precio),
         stock: parseInt(stock),
         imagenUrl,
+        categoria: categoria || 'fimu',
         imagenes: imagenes?.length ? {
           create: imagenes.map((img: { url: string; esPrincipal: boolean; orden: number }) => ({
             url: img.url,
