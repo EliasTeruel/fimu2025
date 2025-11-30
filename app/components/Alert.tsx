@@ -34,7 +34,7 @@ export default function Alert({ title, message, type = 'info', onClose }: AlertP
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border-4 animate-scale-in"
+        className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border-2 animate-scale-in"
         style={{ borderColor: color.border, backgroundColor: color.bg }}
         onClick={(e) => e.stopPropagation()}
       >

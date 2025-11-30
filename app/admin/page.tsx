@@ -46,7 +46,7 @@ export default function AdminPage() {
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [precio, setPrecio] = useState('')
-  const [stock, setStock] = useState('')
+  const [stock, setStock] = useState('1')
   const [imagenUrl, setImagenUrl] = useState('')
   const [imagenes, setImagenes] = useState<ProductoImagen[]>([])
   const [categoria, setCategoria] = useState('fimu')
@@ -349,23 +349,22 @@ export default function AdminPage() {
   }
 
   if (loading) {
-    return <LoadingScreen backgroundColor="#D1ECFF" textColor="#5E18EB" />
+    return <LoadingScreen />
   }
 
   return (
     <>
       <Navbar />
-      <div className="min-h-screen" style={{ backgroundColor: '#D1ECFF', paddingTop: '100px' }}>
+      <div className="min-h-screen bg-white" style={{ paddingTop: '100px' }}>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-6 pt-6">
-          <h1 className="text-3xl font-bold" style={{ color: '#1F0354' }}>
+          <h1 className="text-3xl font-bold font-title uppercase tracking-wide text-black">
             📊 Productos
           </h1>
           <button
             onClick={() => setMostrarConfig(!mostrarConfig)}
-            className="px-4 py-2 rounded-md text-white font-medium hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: '#FF5BC7' }}
+            className="px-4 py-2 text-white font-medium hover:bg-gray-700 transition-colors bg-black font-body uppercase tracking-wide"
           >
             ⚙️ {mostrarConfig ? 'Ocultar' : 'Configurar'} Categorías
           </button>
@@ -373,40 +372,39 @@ export default function AdminPage() {
 
         {/* Panel de Configuración de Categorías */}
         {mostrarConfig && (
-          <div className="mb-6 bg-white p-6 rounded-lg shadow border-2" style={{ borderColor: '#FF5BC7' }}>
-            <h2 className="text-xl font-semibold mb-4" style={{ color: '#1F0354' }}>
+          <div className="mb-6 bg-white p-6 border-2 border-black">
+            <h2 className="text-xl font-semibold mb-4 font-title uppercase text-black">
               ⚙️ Configuración de Categorías
             </h2>
-            <p className="text-sm mb-4" style={{ color: '#5E18EB' }}>
+            <p className="text-sm mb-4 font-body text-gray-700">
               Controla qué categorías se muestran en la página principal de la tienda
             </p>
             <div className="space-y-3">
               {categoriasConfig.map((cat) => (
                 <div
                   key={cat.id}
-                  className="flex items-center justify-between p-4 rounded-lg border-2"
+                  className="flex items-center justify-between p-4 border-2"
                   style={{ 
-                    borderColor: cat.visible ? '#5E18EB' : '#FFC3E5',
-                    backgroundColor: cat.visible ? '#F0ECFF' : '#FFF0FB'
+                    borderColor: cat.visible ? '#000000' : '#666666',
+                    backgroundColor: cat.visible ? '#F5F5F5' : '#FFFFFF'
                   }}
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{cat.icono}</span>
                     <div>
-                      <h3 className="font-semibold" style={{ color: '#1F0354' }}>
+                      <h3 className="font-semibold font-title uppercase text-black">
                         {cat.nombreMostrar}
                       </h3>
-                      <p className="text-sm" style={{ color: '#5E18EB' }}>
+                      <p className="text-sm font-body text-gray-700">
                         {cat.visible ? '✓ Visible en la tienda' : '✗ Oculta de la tienda'}
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => toggleCategoriaVisible(cat.categoria, !cat.visible)}
-                    className="px-4 py-2 rounded-md text-white font-medium hover:opacity-90 transition-opacity"
-                    style={{ backgroundColor: cat.visible ? '#FF6012' : '#5E18EB' }}
+                    className="px-4 py-2 text-white font-medium hover:bg-gray-700 transition-colors bg-black font-body uppercase tracking-wide"
                   >
-                    {cat.visible ? '👁️ Ocultar' : '👁️ Mostrar'}
+                    {cat.visible ? 'Ocultar' : 'Mostrar'}
                   </button>
                 </div>
               ))}
@@ -418,8 +416,7 @@ export default function AdminPage() {
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="mb-8 px-8 py-3 text-white rounded-lg hover:scale-105 transition-all font-semibold text-lg shadow-lg flex items-center gap-2"
-            style={{ backgroundColor: '#5E18EB' }}
+            className="mb-8 px-8 py-3 text-white hover:bg-gray-700 transition-colors font-semibold text-lg flex items-center gap-2 bg-black font-title uppercase tracking-wide"
           >
             <span className="text-2xl">+</span>
             <span>Agregar Nuevo Producto</span>
@@ -428,13 +425,13 @@ export default function AdminPage() {
 
         {/* Formulario */}
         {showForm && (
-          <div className="mb-8 bg-white p-6 rounded-lg shadow border-2" style={{ borderColor: '#FFC3E5' }}>
-            <h2 className="text-xl font-semibold mb-4" style={{ color: '#1F0354' }}>
+          <div className="mb-8 bg-white p-6 border-2 border-black">
+            <h2 className="text-xl font-semibold mb-4 font-title uppercase text-black">
               {editingId ? 'Editar Producto' : 'Nuevo Producto'}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+                <label className="block text-sm font-medium mb-1 font-body text-black">
                   Nombre *
                 </label>
                 <input
@@ -442,27 +439,25 @@ export default function AdminPage() {
                   required
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
-                  style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                  className="w-full px-3 py-2 border-2 focus:outline-none focus:ring-2 focus:ring-black font-body text-black border-black"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+                <label className="block text-sm font-medium mb-1 font-body text-black">
                   Descripción
                 </label>
                 <textarea
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
-                  style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                  className="w-full px-3 py-2 border-2 focus:outline-none focus:ring-2 focus:ring-black font-body text-black border-black"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+                  <label className="block text-sm font-medium mb-1 font-body text-black">
                     Precio *
                   </label>
                   <input
@@ -471,13 +466,12 @@ export default function AdminPage() {
                     required
                     value={precio}
                     onChange={(e) => setPrecio(e.target.value)}
-                    className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
-                    style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                    className="w-full px-3 py-2 border-2 focus:outline-none focus:ring-2 focus:ring-black font-body text-black border-black"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+                  <label className="block text-sm font-medium mb-1 font-body text-black">
                     Stock *
                   </label>
                   <input
@@ -485,15 +479,14 @@ export default function AdminPage() {
                     required
                     value={stock}
                     onChange={(e) => setStock(e.target.value)}
-                    className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
-                    style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                    className="w-full px-3 py-2 border-2 focus:outline-none focus:ring-2 focus:ring-black font-body text-black border-black"
                   />
                 </div>
               </div>
 
               {/* Campo de Categoría */}
               <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: '#1F0354' }}>
+                <label className="block text-sm font-medium mb-2 font-body text-black">
                   Categoría *
                 </label>
                 <div className="flex gap-6">
@@ -561,21 +554,19 @@ export default function AdminPage() {
                             <button
                               type="button"
                               onClick={() => marcarComoPrincipal(index)}
-                              className="w-full text-xs py-1 rounded hover:opacity-80 transition-opacity"
-                              style={{ backgroundColor: '#5E18EB', color: 'white' }}
+                              className="w-full text-xs py-1 hover:bg-gray-800 transition-colors bg-black text-white font-body uppercase tracking-wide"
                             >
                               ★ Marcar Principal
                             </button>
                           ) : (
-                            <span className="w-full text-xs py-1 rounded text-center font-semibold" style={{ backgroundColor: '#FF5BC7', color: 'white' }}>
+                            <span className="w-full text-xs py-1 text-center font-semibold bg-gray-100 text-black border-2 border-black font-body uppercase tracking-wide">
                               ★ PRINCIPAL
                             </span>
                           )}
                           <button
                             type="button"
                             onClick={() => eliminarImagen(index)}
-                            className="w-full py-1 text-xs rounded hover:opacity-80 transition-opacity"
-                            style={{ backgroundColor: '#FF6012', color: 'white' }}
+                            className="w-full py-1 text-xs hover:bg-gray-200 transition-colors border-2 border-black bg-white text-black font-body uppercase tracking-wide"
                           >
                             🗑️ Eliminar
                           </button>
@@ -604,14 +595,13 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={() => open()}
-                      className="w-full py-3 rounded-md hover:opacity-90 transition-opacity text-white font-medium text-lg"
-                      style={{ backgroundColor: '#FF5BC7' }}
+                      className="w-full py-3 hover:bg-gray-100 transition-colors text-black font-medium text-lg border-2 border-black font-body uppercase tracking-wide bg-white"
                     >
                       📸 Agregar Imagen(es) ({imagenes.length}/10)
                     </button>
                   )}
                 </CldUploadWidget>
-                <p className="text-xs mt-2" style={{ color: '#5E18EB' }}>
+                <p className="text-xs mt-2 text-gray-600 font-body">
                   💡 Puedes seleccionar múltiples imágenes a la vez. La primera se marca como principal automáticamente.
                 </p>
               </div>
@@ -620,8 +610,7 @@ export default function AdminPage() {
                 <button
                   type="submit"
                   disabled={guardando}
-                  className="px-6 py-2 text-white rounded-md hover:opacity-90 transition-opacity font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{ backgroundColor: '#5E18EB' }}
+                  className="px-6 py-2 text-white hover:bg-gray-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-body uppercase tracking-wide bg-black"
                 >
                   {guardando ? (
                     <>
@@ -636,8 +625,7 @@ export default function AdminPage() {
                   type="button"
                   onClick={resetForm}
                   disabled={guardando}
-                  className="px-6 py-2 rounded-md hover:opacity-90 transition-opacity font-medium disabled:opacity-50"
-                  style={{ backgroundColor: '#FFC3E5', color: '#1F0354' }}
+                  className="px-6 py-2 hover:bg-gray-200 transition-colors font-medium disabled:opacity-50 border-2 border-black text-black font-body uppercase tracking-wide bg-white"
                 >
                   Cancelar
                 </button>
@@ -647,41 +635,41 @@ export default function AdminPage() {
         )}
 
         {/* Lista de productos */}
-        <div className="bg-white rounded-lg shadow overflow-hidden border-2" style={{ borderColor: '#FFC3E5' }}>
+        <div className="bg-white overflow-hidden border-2 border-black">
           {/* <div className="px-6 py-4 border-b" style={{ borderColor: '#FFC3E5', backgroundColor: '#D1ECFF' }}>
             <h2 className="text-lg font-semibold" style={{ color: '#1F0354' }}>Productos</h2>
           </div> */}
           {productos.length === 0 && !loading ? (
-            <div className="p-6 text-center" style={{ color: '#5E18EB' }}>
+            <div className="p-6 text-center font-body text-gray-700">
               No hay productos. Agrega tu primer producto.
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y" style={{ borderColor: '#FFC3E5' }}>
-                <thead style={{ backgroundColor: '#1F0354' }}>
+              <table className="min-w-full divide-y divide-black">
+                <thead className="bg-black">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#D1ECFF' }}>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-white font-body">
                       Imagen
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#D1ECFF' }}>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-white font-body">
                       Nombre
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#D1ECFF' }}>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-white font-body">
                       Precio
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#D1ECFF' }}>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-white font-body">
                       Stock
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#D1ECFF' }}>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-white font-body">
                       Acciones
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y" style={{ borderColor: '#FFC3E5' }}>
+                <tbody className="bg-white divide-y divide-gray-200">
                   {productos.map((producto) => (
-                    <tr key={producto.id} className="hover:opacity-90 transition-opacity" style={{ backgroundColor: '#fff' }}>
+                    <tr key={producto.id} className="hover:bg-gray-50 transition-colors bg-white">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="relative h-16 w-16 rounded" style={{ backgroundColor: '#D1ECFF' }}>
+                        <div className="relative h-16 w-16 bg-gray-50">
                           {(() => {
                             // Buscar imagen principal o usar la primera disponible
                             const imagenPrincipal = producto.imagenes?.find(img => img.esPrincipal)?.url
@@ -693,10 +681,10 @@ export default function AdminPage() {
                                 src={imagenPrincipal}
                                 alt={producto.nombre}
                                 fill
-                                className="object-contain rounded p-1"
+                                className="object-contain p-1"
                               />
                             ) : (
-                              <div className="h-full w-full rounded flex items-center justify-center text-2xl" style={{ color: '#FF5BC7' }}>
+                              <div className="h-full w-full flex items-center justify-center text-2xl text-gray-400">
                                 📦
                               </div>
                             )
@@ -704,7 +692,7 @@ export default function AdminPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium" style={{ color: '#1F0354' }}>
+                        <div className="text-sm font-medium text-black font-title uppercase">
                           {producto.nombre}
                         </div>
                         {/* {producto.descripcion && (
@@ -714,17 +702,16 @@ export default function AdminPage() {
                           </div>
                         )} */}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold" style={{ color: '#5E18EB' }}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-black font-title">
                         ${producto.precio.toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold font-body uppercase ${
                             producto.stock > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
+                              ? 'bg-gray-100 text-black'
+                              : 'bg-gray-800 text-white'
                           }`}
-                          style={producto.stock > 0 ? { color: '#5E18EB' } : { color: '#FF6012' }}
                         >
                           {producto.stock}
                         </span>
@@ -733,12 +720,11 @@ export default function AdminPage() {
                         <button
                           onClick={() => handleEdit(producto)}
                           disabled={editandoId === producto.id || eliminandoId === producto.id}
-                          className="mr-4 hover:opacity-80 transition-opacity font-semibold disabled:opacity-50 inline-flex items-center gap-1"
-                          style={{ color: '#5E18EB' }}
+                          className="mr-4 hover:opacity-60 transition-opacity font-semibold disabled:opacity-50 inline-flex items-center gap-1 text-black font-body uppercase tracking-wide"
                         >
                           {editandoId === producto.id ? (
                             <>
-                              <Spinner size="sm" color="#5E18EB" />
+                              <Spinner size="sm" color="#000000" />
                               Cargando...
                             </>
                           ) : (
@@ -748,12 +734,11 @@ export default function AdminPage() {
                         <button
                           onClick={() => handleDelete(producto.id)}
                           disabled={editandoId === producto.id || eliminandoId === producto.id}
-                          className="hover:opacity-80 transition-opacity font-semibold disabled:opacity-50 inline-flex items-center gap-1"
-                          style={{ color: '#FF6012' }}
+                          className="hover:opacity-60 transition-opacity font-semibold disabled:opacity-50 inline-flex items-center gap-1 text-black font-body uppercase tracking-wide"
                         >
                           {eliminandoId === producto.id ? (
                             <>
-                              <Spinner size="sm" color="#FF6012" />
+                              <Spinner size="sm" color="#000000" />
                               Eliminando...
                             </>
                           ) : (

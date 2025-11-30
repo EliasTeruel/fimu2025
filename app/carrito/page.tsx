@@ -376,7 +376,7 @@ export default function CarritoPage() {
       }
 
       // 2. Enviar notificación por WhatsApp (con TODOS los productos)
-      const adminPhone = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP || '+5491172374065'
+      const adminPhone = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP || '+5491123882449'
       
       try {
         const responseWhatsApp = await fetch('/api/notificaciones/whatsapp', {
@@ -439,14 +439,13 @@ export default function CarritoPage() {
   return (
     <>
       <Navbar cantidadCarrito={items.length} />
-      <div className="min-h-screen p-4" style={{ backgroundColor: '#FFC3E5', paddingTop: '120px' }}>
+      <div className="min-h-screen p-4 bg-white" style={{ paddingTop: '120px' }}>
         {/* Header */}
         <div className="max-w-4xl mx-auto mb-6">
         <div className="flex items-center justify-between mb-4">
           <Link 
             href="/"
-            className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: '#5E18EB' }}
+            className="px-4 py-2 font-semibold text-white hover:bg-gray-700 transition-colors bg-black font-body uppercase tracking-wide"
           >
             ← Volver
           </Link>
@@ -454,8 +453,7 @@ export default function CarritoPage() {
             <button
               onClick={vaciarCarrito}
               disabled={vaciandoCarrito}
-              className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-              style={{ backgroundColor: '#FF6012' }}
+              className="px-4 py-2 font-semibold text-white hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 bg-black font-body uppercase tracking-wide"
             >
               {vaciandoCarrito ? (
                 <>
@@ -468,22 +466,21 @@ export default function CarritoPage() {
             </button>
           )}
         </div>
-        <h1 className="text-3xl font-bold" style={{ color: '#1F0354' }}>
-          🛒 Mi Carrito
-        </h1>
+        <h2 className="text-3xl font-bold font-title uppercase tracking-wide text-black">
+           Mi Carrito
+        </h2>
       </div>
 
       {/* Contenido */}
       <div className="max-w-4xl mx-auto">
         {items.length === 0 ? (
-          <div className="bg-white rounded-lg p-8 text-center shadow-md">
-            <p className="text-xl mb-4" style={{ color: '#5E18EB' }}>
+          <div className="bg-gray-50 p-8 text-center border-2 border-black">
+            <p className="text-xl mb-4 font-body text-black">
               Tu carrito está vacío
             </p>
             <Link
               href="/"
-              className="inline-block px-6 py-3 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: '#FF5BC7' }}
+              className="inline-block px-6 py-3 font-semibold text-white hover:bg-gray-700 transition-colors bg-black font-body uppercase tracking-wide"
             >
               Ir a comprar
             </Link>
@@ -495,43 +492,43 @@ export default function CarritoPage() {
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className="bg-white rounded-lg p-4 shadow-md border-2"
+                  className="bg-white p-4 border-2"
                   style={{ 
-                    borderColor: item.producto.estado === 'reservado' ? '#FF6012' : '#FFC3E5',
-                    backgroundColor: item.producto.estado === 'reservado' ? '#FFF4E6' : '#fff'
+                    borderColor: item.producto.estado === 'reservado' ? '#666666' : '#000000',
+                    backgroundColor: item.producto.estado === 'reservado' ? '#F5F5F5' : '#fff'
                   }}
                 >
                   {/* Badge de Estado Reservado */}
                   {item.producto.estado === 'reservado' && (
-                    <div className="mb-3 p-4 rounded-lg border-2" style={{ backgroundColor: '#FFF4E6', borderColor: '#FF6012' }}>
-                      <p className="font-bold text-xl mb-2" style={{ color: '#FF6012' }}>
+                    <div className="mb-3 p-4 border-2 border-black bg-gray-100">
+                      <p className="font-bold text-xl mb-2 font-title uppercase text-black">
                         Producto Reservado
                       </p>
                       {tiemposRestantes[item.producto.id] && (
-                        <p className="font-semibold text-lg mb-2" style={{ color: '#FF6012' }}>
+                        <p className="font-semibold text-lg mb-2 font-body text-gray-700">
                           {tiemposRestantes[item.producto.id]}
                         </p>
                       )}
-                      <p className="text-sm mb-1" style={{ color: '#1F0354' }}>
+                      <p className="text-sm mb-1 font-body text-gray-600">
                         Tu producto está reservado y esperando confirmación del pago.
                       </p>
-                      <p className="text-sm font-semibold" style={{ color: '#FF6012' }}>
+                      <p className="text-sm font-semibold font-body text-black">
                         Si no se confirma la venta en el tiempo indicado, la reserva se cancelará automáticamente y el producto volverá a estar disponible.
                       </p>
-                       <p className="text-sm font-semibold" style={{ color: '#1F0354' }}>
+                       <p className="text-sm font-semibold font-body text-black">
                         Para confirmar tu compra, realizá la transferencia a:
                       </p>
-                      <div className="mt-2 p-3 rounded" style={{ backgroundColor: '#FFF' }}>
-                        <p className="text-sm font-bold mb-1" style={{ color: '#FF6012' }}>
+                      <div className="mt-2 p-3 bg-white border-2 border-black">
+                        <p className="text-sm font-bold mb-1 font-title uppercase text-black">
                           💳 Mercado Pago
                         </p>
-                        <p className="text-sm font-semibold" style={{ color: '#1F0354' }}>
-                          Alias: <span style={{ color: '#FF5BC7' }}>fimu.vintage</span>
+                        <p className="text-sm font-semibold font-body text-gray-700">
+                          Alias: <span className="text-black">fimu.vintage</span>
                         </p>
-                        <p className="text-sm font-semibold" style={{ color: '#1F0354' }}>
-                          Nombre: <span style={{ color: '#FF5BC7' }}>Elias Teruel</span>
+                        <p className="text-sm font-semibold font-body text-gray-700">
+                          Nombre: <span className="text-black">Elias Teruel</span>
                         </p>
-                        <p className="text-xs mt-2" style={{ color: '#5E18EB' }}>
+                        <p className="text-xs mt-2 font-body text-gray-600">
                           📸 Una vez realizada la transferencia, enviá el comprobante por WhatsApp
                         </p>
                       </div>
@@ -540,7 +537,7 @@ export default function CarritoPage() {
                   
                   <div className="flex gap-4">
                     {/* Imagen */}
-                    <div className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden" style={{ backgroundColor: '#D1ECFF' }}>
+                    <div className="relative w-24 h-24 flex-shrink-0 overflow-hidden bg-gray-50">
                       <Image
                         src={CloudinaryPresets.thumbnail(obtenerImagenPrincipal(item.producto))}
                         alt={item.producto.nombre}
@@ -553,10 +550,10 @@ export default function CarritoPage() {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-lg mb-1 truncate" style={{ color: '#1F0354' }}>
+                      <h3 className="font-body text-lg mb-1 truncate font-title uppercase text-black">
                         {item.producto.nombre}
                       </h3>
-                      <p className="text-xl font-bold mb-2" style={{ color: '#FF5BC7' }}>
+                      <p className="text-xl font-body mb-2 font-title text-black">
                         ${item.producto.precio.toFixed(2)}
                       </p>
                     </div>
@@ -567,8 +564,7 @@ export default function CarritoPage() {
                         <button
                           onClick={() => eliminarItem(item.id)}
                           disabled={eliminandoItem === item.id}
-                          className="px-3 py-1 rounded-md font-semibold text-white hover:opacity-80 transition-opacity disabled:opacity-50 flex items-center gap-2"
-                          style={{ backgroundColor: '#FF6012' }}
+                          className="px-3 py-1 font-semibold text-white hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center gap-2 bg-black font-body uppercase tracking-wide"
                         >
                           {eliminandoItem === item.id ? (
                             <>
@@ -587,12 +583,12 @@ export default function CarritoPage() {
             </div>
 
             {/* Total y Checkout */}
-            <div className="bg-white rounded-lg p-6 shadow-md">
+            <div className="bg-white p-6 border-2 border-black">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-xl font-bold" style={{ color: '#1F0354' }}>
+                <span className="text-xl font-bold font-title uppercase text-black">
                   Total:
                 </span>
-                <span className="text-3xl font-bold" style={{ color: '#FF5BC7' }}>
+                <span className="text-3xl font-bold font-title text-black">
                   ${calcularTotal().toFixed(2)}
                 </span>
               </div>
@@ -611,8 +607,7 @@ export default function CarritoPage() {
                       <button
                         onClick={procederAlPago}
                         disabled={procesandoPago}
-                        className="w-full py-4 rounded-lg font-bold text-white text-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mb-4"
-                        style={{ backgroundColor: '#5E18EB' }}
+                        className="w-full py-4 font-bold text-white text-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mb-4 bg-black font-title uppercase tracking-wide"
                       >
                         {procesandoPago ? (
                           <>
@@ -625,13 +620,13 @@ export default function CarritoPage() {
 
                     {/* Mensaje de productos reservados */}
                     {hayReservados && (
-                      <div className="p-4 rounded-lg text-center" style={{ backgroundColor: '#FFF4E6', color: '#FF6012' }}>
-                        <p className="font-bold">⏱️ {productosReservados.length} Producto{productosReservados.length > 1 ? 's' : ''} Reservado{productosReservados.length > 1 ? 's' : ''}</p>
-                        <p className="text-sm mt-1">
+                      <div className="p-4 text-center bg-gray-100 border-2 border-black">
+                        <p className="font-bold font-title uppercase text-black">⏱️ {productosReservados.length} Producto{productosReservados.length > 1 ? 's' : ''} Reservado{productosReservados.length > 1 ? 's' : ''}</p>
+                        <p className="text-sm mt-1 font-body text-gray-700">
                           Esperando confirmación del pago por parte del vendedor
                         </p>
                         {hayDisponibles && (
-                          <p className="text-sm mt-2 font-semibold">
+                          <p className="text-sm mt-2 font-semibold font-body text-black">
                             ⬆️ Podés agregar más productos a tu reserva
                           </p>
                         )}

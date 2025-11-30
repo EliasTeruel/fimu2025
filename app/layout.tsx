@@ -1,16 +1,29 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Black_Ops_One, Inter, Pacifico } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./contexts/AuthContext";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// Títulos: Black Ops One (similar a Kitck Text Black - bold, impactante)
+const blackOps = Black_Ops_One({
+  weight: '400',
+  subsets: ['latin'],
+  variable: "--font-title",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+// Texto: Inter (similar a Clean Sans - limpia, moderna, minimalista)
+const inter = Inter({
+  subsets: ['latin'],
+  variable: "--font-body",
+  display: "swap",
+});
+
+// Resaltar/Detalle: Pacifico (similar a Day Dream - script, decorativa)
+const pacifico = Pacifico({
+  weight: '400',
+  subsets: ['latin'],
+  variable: "--font-accent",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -26,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${blackOps.variable} ${inter.variable} ${pacifico.variable} antialiased`}
       >
         <AuthProvider>
           {children}

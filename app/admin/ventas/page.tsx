@@ -391,80 +391,58 @@ export default function VentasAdminPage() {
     return <LoadingScreen message="Cargando ventas..." />
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen p-6" style={{ backgroundColor: '#FFC3E5' }}>
-        <div className="max-w-7xl mx-auto">
-          <div className="flex justify-center items-center h-64">
-            <div className="text-center">
-              <Spinner size="lg" color="#5E18EB" />
-              <p className="mt-4 text-xl font-semibold" style={{ color: '#1F0354' }}>
-                Cargando productos...
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <>
       <Navbar />
-      <div className="min-h-screen p-6" style={{ backgroundColor: '#FFC3E5', paddingTop: '120px' }}>
+      <div className="min-h-screen p-6 bg-white" style={{ paddingTop: '120px' }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold" style={{ color: '#1F0354' }}>
+          <h1 className="text-3xl font-bold font-title uppercase tracking-wide text-black">
             📊 Gestión de Ventas
           </h1>
         </div>
 
         {/* Filtros */}
-        <div className="bg-white rounded-lg p-4 mb-6 shadow-md">
+        <div className="bg-white p-4 mb-6 border-2 border-black">
           <div className="flex gap-3 flex-wrap">
             <button
               onClick={() => setVistaActual('todos')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                vistaActual === 'todos' ? 'text-white' : 'bg-gray-100'
+              className={`px-4 py-2 font-semibold transition-all font-body uppercase tracking-wide ${
+                vistaActual === 'todos' ? 'bg-black text-white' : 'bg-gray-100 text-black'
               }`}
-              style={vistaActual === 'todos' ? { backgroundColor: '#5E18EB' } : { color: '#5E18EB' }}
             >
               Todos ({productos.length})
             </button>
             <button
               onClick={() => setVistaActual('enCarritos')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                vistaActual === 'enCarritos' ? 'text-white' : 'bg-gray-100'
+              className={`px-4 py-2 font-semibold transition-all font-body uppercase tracking-wide ${
+                vistaActual === 'enCarritos' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700'
               }`}
-              style={vistaActual === 'enCarritos' ? { backgroundColor: '#D1ECFF', color: '#1F0354' } : { color: '#5E18EB' }}
             >
               🛒 En Carritos ({productosEnCarrito.length})
             </button>
             <button
               onClick={() => setVistaActual('carrito')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                vistaActual === 'carrito' ? 'text-white' : 'bg-gray-100'
+              className={`px-4 py-2 font-semibold transition-all font-body uppercase tracking-wide ${
+                vistaActual === 'carrito' ? 'bg-black text-white' : 'bg-gray-100 text-black'
               }`}
-              style={vistaActual === 'carrito' ? { backgroundColor: '#5E18EB' } : { color: '#5E18EB' }}
             >
               Disponibles ({productos.filter(p => p.estado === 'disponible').length})
             </button>
             <button
               onClick={() => setVistaActual('reservados')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                vistaActual === 'reservados' ? 'text-white' : 'bg-gray-100'
+              className={`px-4 py-2 font-semibold transition-all font-body uppercase tracking-wide ${
+                vistaActual === 'reservados' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700'
               }`}
-              style={vistaActual === 'reservados' ? { backgroundColor: '#FF6012' } : { color: '#FF6012' }}
             >
               Reservados ({productos.filter(p => p.estado === 'reservado').length})
             </button>
             <button
               onClick={() => setVistaActual('vendidos')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                vistaActual === 'vendidos' ? 'text-white' : 'bg-gray-100'
+              className={`px-4 py-2 font-semibold transition-all font-body uppercase tracking-wide ${
+                vistaActual === 'vendidos' ? 'bg-black text-white' : 'bg-gray-100 text-black'
               }`}
-              style={vistaActual === 'vendidos' ? { backgroundColor: '#00A86B' } : { color: '#00A86B' }}
             >
               Vendidos ({productos.filter(p => p.estado === 'vendido').length})
             </button>
@@ -476,17 +454,16 @@ export default function VentasAdminPage() {
           /* Vista de productos en carritos */
           <div className="space-y-4">
             {productosEnCarrito.length === 0 ? (
-              <div className="bg-white rounded-lg p-8 text-center shadow-md">
-                <p style={{ color: '#5E18EB' }}>No hay productos en carritos</p>
+              <div className="bg-white p-8 text-center border-2 border-black">
+                <p className="font-body text-gray-700">No hay productos en carritos</p>
               </div>
             ) : (
               productosEnCarrito.map((item) => (
-                <div key={item.id} className="bg-white rounded-lg p-4 shadow-md">
+                <div key={item.id} className="bg-white p-4 border-2 border-black">
                   <div className="flex gap-4 items-start">
                     {/* Imagen */}
                     <div 
-                      className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden"
-                      style={{ backgroundColor: '#D1ECFF' }}
+                      className="relative w-24 h-24 flex-shrink-0 overflow-hidden bg-gray-50"
                     >
                       <Image
                         src={obtenerImagenPrincipal(item.producto)}
@@ -518,17 +495,16 @@ export default function VentasAdminPage() {
           /* Vista normal de productos */
           <div className="space-y-4">
             {productosFiltrados.length === 0 ? (
-            <div className="bg-white rounded-lg p-8 text-center shadow-md">
-              <p style={{ color: '#5E18EB' }}>No hay productos en esta categoría</p>
+            <div className="bg-white p-8 text-center border-2 border-black">
+              <p className="font-body text-gray-700">No hay productos en esta categoría</p>
             </div>
           ) : (
             productosFiltrados.map((producto) => (
-              <div key={producto.id} className="bg-white rounded-lg p-4 shadow-md">
+              <div key={producto.id} className="bg-white p-4 border-2 border-black">
                 <div className="flex gap-4 items-start">
                   {/* Imagen */}
                   <div 
-                    className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden"
-                    style={{ backgroundColor: '#D1ECFF' }}
+                    className="relative w-24 h-24 flex-shrink-0 overflow-hidden bg-gray-50"
                   >
                     <Image
                       src={obtenerImagenPrincipal(producto)}
@@ -543,10 +519,10 @@ export default function VentasAdminPage() {
                   <div className="flex-1">
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <h3 className="font-bold text-lg" style={{ color: '#1F0354' }}>
+                        <h3 className="font-body text-lg font-title uppercase text-black">
                           {producto.nombre}
                         </h3>
-                        <p className="text-xl font-bold" style={{ color: '#FF5BC7' }}>
+                        <p className="text-xl font-body font-title text-black">
                           ${producto.precio.toFixed(2)}
                         </p>
                       </div>
@@ -554,16 +530,13 @@ export default function VentasAdminPage() {
                       <div className="flex flex-col gap-1 items-end">
                         {/* Badge de Estado */}
                         <span
-                          className="px-3 py-1 rounded-full text-sm font-semibold"
+                          className="px-3 py-1 text-sm font-semibold font-body uppercase tracking-wide"
                           style={{
                             backgroundColor: 
-                              producto.estado === 'disponible' ? '#D1ECFF' :
-                              producto.estado === 'reservado' ? '#FFF4E6' :
-                              '#E6FFE6',
-                            color:
-                              producto.estado === 'disponible' ? '#5E18EB' :
-                              producto.estado === 'reservado' ? '#FF6012' :
-                              '#00A86B'
+                              producto.estado === 'disponible' ? '#F5F5F5' :
+                              producto.estado === 'reservado' ? '#E5E5E5' :
+                              '#CCCCCC',
+                            color: '#000000'
                           }}
                         >
                           {producto.estado === 'disponible' && '✅ Disponible'}
@@ -576,11 +549,7 @@ export default function VentasAdminPage() {
                          producto.estado === 'disponible' && 
                          productosEnCarrito.some(item => item.productoId === producto.id) && (
                           <span
-                            className="px-2 py-1 rounded-full text-xs font-semibold"
-                            style={{
-                              backgroundColor: '#FFF0FB',
-                              color: '#FF5BC7'
-                            }}
+                            className="px-2 py-1 text-xs font-semibold font-body uppercase bg-gray-200 text-black"
                           >
                             🛒 En carrito
                           </span>
@@ -590,12 +559,12 @@ export default function VentasAdminPage() {
 
                     {/* Info de Reserva */}
                     {producto.estado === 'reservado' && producto.reservadoEn && (
-                      <div className="mb-3 p-2 rounded" style={{ backgroundColor: '#FFF4E6' }}>
-                        <p className="text-sm font-semibold" style={{ color: '#FF6012' }}>
+                      <div className="mb-3 p-2 bg-gray-100 border-2 border-black">
+                        <p className="text-sm font-semibold font-body text-black">
                           {calcularTiempoRestante(producto.reservadoEn, producto.reservaPausada)}
                         </p>
                         {producto.compradorInfo && (
-                          <p className="text-sm" style={{ color: '#5E18EB' }}>
+                          <p className="text-sm font-body text-gray-700">
                             Comprador: {producto.compradorInfo}
                           </p>
                         )}
@@ -609,8 +578,7 @@ export default function VentasAdminPage() {
                           <button
                             onClick={() => confirmarVenta(producto.id)}
                             disabled={confirmandoVenta === producto.id}
-                            className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-                            style={{ backgroundColor: '#00A86B' }}
+                            className="px-4 py-2 font-semibold text-white hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 bg-black font-body uppercase tracking-wide"
                           >
                             {confirmandoVenta === producto.id ? (
                               <>
@@ -624,8 +592,8 @@ export default function VentasAdminPage() {
                           <button
                             onClick={() => togglePausarReserva(producto.id, producto.nombre, producto.reservaPausada || false)}
                             disabled={pausandoReserva === producto.id}
-                            className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-                            style={{ backgroundColor: producto.reservaPausada ? '#5E18EB' : '#FFA500' }}
+                            className="px-4 py-2 font-semibold text-white hover:bg-gray-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 font-body uppercase tracking-wide"
+                            style={{ backgroundColor: producto.reservaPausada ? '#000000' : '#666666' }}
                           >
                             {pausandoReserva === producto.id ? (
                               <>
@@ -639,8 +607,7 @@ export default function VentasAdminPage() {
                           <button
                             onClick={() => cancelarReserva(producto.id)}
                             disabled={cancelandoReserva === producto.id}
-                            className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-                            style={{ backgroundColor: '#FF6012' }}
+                            className="px-4 py-2 font-semibold text-white hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 bg-black font-body uppercase tracking-wide"
                           >
                             {cancelandoReserva === producto.id ? (
                               <>
@@ -658,8 +625,7 @@ export default function VentasAdminPage() {
                           <button
                             onClick={() => marcarComoVendido(producto.id, producto.nombre)}
                             disabled={marcandoVendido === producto.id}
-                            className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-                            style={{ backgroundColor: '#00A86B' }}
+                            className="px-4 py-2 font-semibold text-white hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 bg-black font-body uppercase tracking-wide"
                           >
                             {marcandoVendido === producto.id ? (
                               <>
@@ -670,7 +636,7 @@ export default function VentasAdminPage() {
                               '💰 Marcar Vendido'
                             )}
                           </button>
-                          <span className="text-sm self-center" style={{ color: '#5E18EB' }}>
+                          <span className="text-sm self-center font-body text-gray-700">
                             Stock: {producto.stock} unidades
                           </span>
                         </>
@@ -679,8 +645,7 @@ export default function VentasAdminPage() {
                         <button
                           onClick={() => volverADisponible(producto.id, producto.nombre)}
                           disabled={volviendoDisponible === producto.id}
-                          className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-                          style={{ backgroundColor: '#5E18EB' }}
+                          className="px-4 py-2 font-semibold text-white hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 bg-black font-body uppercase tracking-wide"
                         >
                           {volviendoDisponible === producto.id ? (
                             <>

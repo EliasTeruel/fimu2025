@@ -8,16 +8,16 @@ interface LoadingScreenProps {
 
 export default function LoadingScreen({ 
   message = 'Cargando...', 
-  backgroundColor = '#FFC3E5',
-  textColor = '#1F0354'
+  backgroundColor = '#FFFFFF',
+  textColor = '#000000'
 }: LoadingScreenProps) {
   return (
     <div 
-      className="min-h-screen flex flex-col items-center justify-center gap-4" 
+      className="min-h-screen flex flex-col items-center justify-center gap-6" 
       style={{ backgroundColor, paddingTop: '100px' }}
     >
       <Spinner size="lg" color={textColor} />
-      <p className="text-xl font-semibold" style={{ color: textColor }}>
+      <p className="text-lg font-medium uppercase tracking-wider font-body" style={{ color: textColor }}>
         {message}
       </p>
     </div>

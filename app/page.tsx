@@ -7,14 +7,14 @@ import ProductoSkeleton from "./components/ProductoSkeleton"
 import ProductoCard, { Producto } from "./components/ProductoCard"
 import ProductoGrid from "./components/ProductoGrid"
 import MantenimientoScreen from "./components/MantenimientoScreen"
+import Navbar from "./components/Navbar"
+import Spinner from "./components/Spinner"
 import { getSessionId } from "@/lib/session"
-import { useAuth } from './contexts/AuthContext'
 
 // 🔧 CONFIGURACIÓN: Cantidad de productos por página (scroll infinito)
 const PRODUCTOS_POR_PAGINA = 3 // Cambiá este número: 3, 5, 10, 20, etc.
 
 export default function Home() {
-  const { user, isAdmin, logout } = useAuth()
   const [productos, setProductos] = useState<Producto[]>([])
   const [productoSeleccionado, setProductoSeleccionado] = useState<Producto | null>(null)
   const [modalAbierto, setModalAbierto] = useState(false)
@@ -25,13 +25,13 @@ export default function Home() {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const observerTarget = useRef<HTMLDivElement>(null)
-  const [menuAbierto, setMenuAbierto] = useState(false)
   const [categoriaActual, setCategoriaActual] = useState<'fimu' | 'perchero'>('fimu')
   const [categoriasVisibles, setCategoriasVisibles] = useState<Array<{
     categoria: string
     nombreMostrar: string
     icono: string | null
   }>>([])
+  const [categoriasCargadas, setCategoriasCargadas] = useState(false)
 
   // Inicializar sessionId al montar el componente
   useEffect(() => {
@@ -48,6 +48,7 @@ export default function Home() {
           const data = await res.json()
           const visibles = data.filter((cat: { visible: boolean }) => cat.visible)
           setCategoriasVisibles(visibles)
+          setCategoriasCargadas(true)
           // Si la categoría actual no está visible, cambiar a la primera visible
           if (visibles.length > 0 && !visibles.find((c: { categoria: string }) => c.categoria === categoriaActual)) {
             setCategoriaActual(visibles[0].categoria)
@@ -55,6 +56,7 @@ export default function Home() {
         }
       } catch (error) {
         console.error('Error al cargar categorías:', error)
+        setCategoriasCargadas(true)
       }
     }
     cargarCategorias()
@@ -163,209 +165,21 @@ export default function Home() {
     }
   }, [sessionId])
 
-  const handleLogout = async () => {
-    await logout()
-    window.location.reload()
-  }
-
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#FFC3E5' }}>
-      {/* Header fijo */}
-      <header className="fixed top-0 left-0 right-0 shadow-lg z-30" style={{ backgroundColor: '#1F0354' }}>
-        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: '#D1ECFF' }}>Fimu Vintage</h1>
-            
-            {/* Botón hamburguesa - solo móvil, oculto cuando el menú está abierto */}
-            {!menuAbierto && (
-              <button
-                onClick={() => setMenuAbierto(true)}
-                className="md:hidden p-2 rounded-md hover:opacity-80 transition-opacity"
-                style={{ color: '#D1ECFF' }}
-                aria-label="Menú"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-            )}
-
-            {/* Nav Desktop - oculto en móvil */}
-            <nav className="hidden md:flex gap-4 items-center">
-              {/* Botón Carrito */}
-              <Link
-                href="/carrito"
-                className="relative px-4 py-2 text-sm font-medium text-white rounded-md hover:opacity-90 transition-opacity flex items-center gap-2"
-                style={{ backgroundColor: '#FF5BC7' }}
-              >
-                🛒 Carrito
-                {cantidadCarrito > 0 && (
-                  <span 
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                    style={{ backgroundColor: '#FF6012' }}
-                  >
-                    {cantidadCarrito}
-                  </span>
-                )}
-              </Link>
-              
-              {/* Mi Perfil - solo si está logueado */}
-              {user && (
-                <Link
-                  href="/perfil"
-                  className="px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
-                  style={{ color: '#D1ECFF' }}
-                >
-                  Mi Perfil
-                </Link>
-              )}
-              
-              {/* Iniciar Sesión - solo si NO está logueado */}
-              {!user && (
-                <Link
-                  href="/login"
-                  className="px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
-                  style={{ color: '#D1ECFF' }}
-                >
-                  Iniciar Sesión
-                </Link>
-              )}
-              
-              {/* Admin - solo si es admin */}
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  className="px-4 py-2 text-sm font-medium text-white rounded-md hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: '#5E18EB' }}
-                >
-                  Admin
-                </Link>
-              )}
-              
-              {/* Cerrar Sesión - solo si está logueado */}
-              {user && (
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-2 text-sm font-medium text-white rounded-md hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: '#FF6012' }}
-                >
-                  Cerrar Sesión
-                </button>
-              )}
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      {/* Menú lateral derecho - móvil */}
-      {menuAbierto && (
-        <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0  bg-opacity-50 z-40 md:hidden"
-            onClick={() => setMenuAbierto(false)}
-          />
-          
-          {/* Panel lateral */}
-          <div className="fixed top-0 right-0 h-full w-64 shadow-xl z-50 md:hidden overflow-y-auto transition-transform duration-300" style={{ backgroundColor: '#5e18eb82' }}>
-            <div className="p-4">
-              {/* Botón cerrar */}
-              <button
-                onClick={() => setMenuAbierto(false)}
-                className="absolute top-4 right-4 p-2 rounded-md hover:opacity-80 transition-opacity"
-                style={{ color: '#D1ECFF' }}
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-
-              <h2 className="text-xl font-bold mb-6 mt-2" style={{ color: '#D1ECFF' }}>Menú</h2>
-
-              <div className="flex flex-col gap-3">
-                {/* Botón Carrito */}
-                <Link
-                  href="/carrito"
-                  onClick={() => setMenuAbierto(false)}
-                  className="relative px-4 py-3 text-base font-medium text-white rounded-md hover:opacity-90 transition-opacity flex items-center gap-2"
-                  style={{ backgroundColor: '#FF5BC7' }}
-                >
-                  🛒 Carrito
-                  {cantidadCarrito > 0 && (
-                    <span 
-                      className="ml-auto w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                      style={{ backgroundColor: '#FF6012' }}
-                    >
-                      {cantidadCarrito}
-                    </span>
-                  )}
-                </Link>
-                
-                {/* Mi Perfil */}
-                {user && (
-                  <Link
-                    href="/perfil"
-                    onClick={() => setMenuAbierto(false)}
-                    className="px-4 py-3 text-base font-medium rounded-md hover:opacity-90 transition-opacity"
-                    style={{ backgroundColor: '#1f0354ff', color: 'rgba(241, 238, 246, 1)' }}
-                  >
-                    👤 Mi Perfil
-                  </Link>
-                )}
-                
-                {/* Iniciar Sesión */}
-                {!user && (
-                  <Link
-                    href="/login"
-                    onClick={() => setMenuAbierto(false)}
-                    className="px-4 py-3 text-base font-medium rounded-md hover:opacity-90 transition-opacity"
-                    style={{ backgroundColor: '#D1ECFF', color: '#1F0354' }}
-                  >
-                    🔐 Iniciar Sesión
-                  </Link>
-                )}
-                
-                {/* Admin */}
-                {isAdmin && (
-                  <Link
-                    href="/admin"
-                    onClick={() => setMenuAbierto(false)}
-                    className="px-4 py-3 text-base font-medium text-white rounded-md hover:opacity-90 transition-opacity"
-                    style={{ backgroundColor: '#5E18EB' }}
-                  >
-                    ⚙️ Admin
-                  </Link>
-                )}
-                
-                {/* Cerrar Sesión */}
-                {user && (
-                  <button
-                    onClick={() => {
-                      setMenuAbierto(false)
-                      handleLogout()
-                    }}
-                    className="px-4 py-3 text-base font-medium text-white rounded-md hover:opacity-90 transition-opacity text-left"
-                    style={{ backgroundColor: '#FF6012' }}
-                  >
-                    🚪 Cerrar Sesión
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+    <div className="min-h-screen bg-white">
+      {/* Usar componente Navbar reutilizable */}
+      <Navbar cantidadCarrito={cantidadCarrito} />
 
       {/* Main Content con padding-top para compensar el header fijo */}
-      <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8" style={{ paddingTop: '120px' }}>
-        <div className="mb-8">
-          <h2 className="text-2xl font-semibold mb-2 text-center" style={{ color: '#1F0354' }}>
-            🍂Tienda de ropa vintage,retro y segunda hand🍂
+      <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 bg-white" style={{ paddingTop: '120px' }}>
+        <div className="mb-12">
+          <h2 className="text-3xl font-bold mb-6 text-center text-black uppercase tracking-wider border-b-2 border-black pb-4 font-title">
+            Tienda de ropa vintage, retro y segunda mano
           </h2>
           
-          {/* Botones de Categoría - Solo mostrar botones de categorías no activas */}
+          {/* Botones de Categoría */}
           {categoriasVisibles.length > 1 && (
-            <div className="mb-6">
+            <div className="mb-8">
               {categoriasVisibles
                 .filter((cat) => cat.categoria !== categoriaActual)
                 .map((cat) => (
@@ -376,34 +190,20 @@ export default function Home() {
                     setPage(1)
                     setProductos([])
                   }}
-                  className="w-full py-6 rounded-xl font-bold transition-all hover:scale-[1.02] hover:shadow-2xl relative overflow-hidden group"
-                  style={{ 
-                    background: cat.categoria === 'fimu' 
-                      ? 'linear-gradient(135deg, #D1ECFF 0%, #5E18EB 100%)'
-                      : 'linear-gradient(135deg, #FFF0FB 0%, #FF5BC7 100%)',
-                    color: 'white'
-                  }}
+                  className="w-full py-8 bg-black text-white font-bold transition-all hover:bg-gray-800 relative uppercase tracking-widest text-lg border-2 border-black font-title"
                 >
-                  {/* Efecto de brillo al hover */}
-                  <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
-                  
-                  <div className="relative z-10 flex flex-col items-center gap-2">
-                    <span className="text-4xl">{cat.icono}</span>
-                    <span className="text-2xl">
+                  <div className="flex flex-col items-center gap-3">
+                    <span className="text-base">
                       {cat.categoria === 'fimu' 
-                        ? '✨ Descubrí nuestra colección Fimu ✨'
-                        : '👗 Explorá el Perchero de tesoros 👗'
+                        ? 'VER COLECCIÓN FIMU'
+                        : 'VER PERCHERO'
                       }
                     </span>
-                    <span className="text-sm opacity-90 font-normal">
+                    <span className="text-xs font-normal tracking-normal opacity-80 font-accent">
                       {cat.categoria === 'fimu'
-                        ? '🔥 Piezas únicas que cuentan historias'
-                        : '💕 Looks increíbles esperándote'
+                        ? 'Piezas únicas · Estilo propio'
+                        : 'Looks vintage · Segunda mano'
                       }
-                    </span>
-                    {/* Indicador de click/tap */}
-                    <span className="text-sm opacity-80 font-normal mt-1 flex items-center gap-1">
-                      👆 Tocá para ver
                     </span>
                   </div>
                 </button>
@@ -411,25 +211,19 @@ export default function Home() {
             </div>
           )}
           
-          <p style={{ color: '#5E18EB' }}>
-            🚀 ENTREGAS zona sur y envíos a todo el pais
-          </p>
-            <p style={{ color: '#5E18EB' }}>
-♻️Pilchitas vintage,retro y 2hand
-
-            </p>
-            <p style={{ color: '#5E18EB' }}>
-💫Te llevarás joyitas unicas💫
-
-            </p>
-            <p style={{ color: '#5E18EB' }}>
-
-👉🏽No se hacen cambios ni devoluciones
-            </p>
+          <div className="text-center text-sm text-gray-600 space-y-1 font-body">
+            <p className="uppercase tracking-wide">Entregas zona sur • Envíos a todo el país</p>
+            <p className="uppercase tracking-wide">Ropa vintage, retro y segunda mano</p>
+            <p className="uppercase tracking-wide">💫Te llevarás joyitas unicas💫
+</p>
+            <p className="uppercase tracking-wide">👉🏽No se hacen cambios ni devoluciones
+</p>
+          </div>
+  
         </div>
 
         {/* Modo Mantenimiento - Si no hay categorías visibles */}
-        {categoriasVisibles.length === 0 ? (
+        {categoriasCargadas && categoriasVisibles.length === 0 ? (
           <MantenimientoScreen />
         ) : cargando ? (
           /* Skeletons de carga */
@@ -468,8 +262,8 @@ export default function Home() {
         {/* Indicador de carga para scroll infinito */}
         {cargandoMas && (
           <div className="flex justify-center py-8">
-            <div className="flex items-center gap-2" style={{ color: '#5E18EB' }}>
-              <div className="w-6 h-6 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#5E18EB' }}></div>
+            <div className="flex items-center gap-2 font-body text-black">
+              <Spinner size="md" color="#000000" />
               <span>Cargando más productos...</span>
             </div>
           </div>

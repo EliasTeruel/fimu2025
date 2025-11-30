@@ -48,16 +48,16 @@ export default function ProductoCard({
   customColors = {}
 }: ProductoCardProps) {
   
-  // Colores por defecto (Fimu Vintage palette)
+  // Colores minimalistas (blanco, negro y grises)
   const colors = {
-    border: customColors.border || '#FF5BC7',
-    imageBg: customColors.imageBg || '#D1ECFF',
-    title: customColors.title || '#1F0354',
-    price: customColors.price || '#5E18EB',
-    button: customColors.button || '#5E18EB',
-    disponible: customColors.disponible || '#5E18EB',
-    reservado: customColors.reservado || '#FF6012',
-    vendido: customColors.vendido || '#00A86B',
+    border: customColors.border || '#000000',
+    imageBg: customColors.imageBg || '#FFFFFF',
+    title: customColors.title || '#000000',
+    price: customColors.price || '#000000',
+    button: customColors.button || '#000000',
+    disponible: customColors.disponible || '#000000',
+    reservado: customColors.reservado || '#666666',
+    vendido: customColors.vendido || '#999999',
   }
 
   // Obtener imagen principal
@@ -69,29 +69,28 @@ export default function ProductoCard({
   // Determinar texto y color del badge de estado
   const getEstadoBadge = () => {
     if (producto.estado === 'reservado') {
-      return { text: '⏱️ Reservado', bgColor: '#FFF4E6', textColor: colors.reservado }
+      return { text: 'RESERVADO', bgColor: '#E5E5E5', textColor: colors.reservado }
     }
     if (producto.estado === 'vendido') {
-      return { text: '✅ Vendido', bgColor: '#E6FFE6', textColor: colors.vendido }
+      return { text: 'VENDIDO', bgColor: '#F5F5F5', textColor: colors.vendido }
     }
-    return { text: '✓ Disponible', bgColor: '#D1ECFF', textColor: colors.disponible }
+    return { text: 'DISPONIBLE', bgColor: '#FFFFFF', textColor: colors.disponible }
   }
 
   const badge = getEstadoBadge()
 
   return (
     <div
-      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 border-2 cursor-pointer"
-      style={{ borderColor: colors.border }}
+      className="bg-white overflow-hidden hover:opacity-80 transition-opacity duration-300 cursor-pointer"
       onClick={() => onClick?.(producto)}
     >
-      {/* Imagen del producto */}
-      <div className="relative h-48" style={{ backgroundColor: colors.imageBg }}>
+      {/* Imagen del producto - ocupa todo el ancho sin padding */}
+      <div className="relative aspect-square w-full" style={{ backgroundColor: colors.imageBg }}>
         <Image
           src={CloudinaryPresets.productCard(obtenerImagenPrincipal())}
           alt={producto.nombre}
           fill
-          className="object-contain p-2"
+          className="object-cover"
           sizes="(max-width: 768px) 50vw, 25vw"
           priority={index < 4}
           loading={index < 4 ? undefined : 'lazy'}
@@ -99,59 +98,52 @@ export default function ProductoCard({
         />
       </div>
 
-      {/* Contenido de la card */}
-      <div className="p-3">
+      {/* Contenido de la card - información abajo */}
+      <div className="p-4 bg-white">
         {/* Título */}
         <h3 
-          className="text-base font-semibold mb-1 line-clamp-1" 
+          className="text-sm font-medium mb-2 line-clamp-1 uppercase tracking-wide font-body" 
           style={{ color: colors.title }}
         >
           {producto.nombre}
         </h3>
 
         {/* Precio y Badge */}
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xl font-bold" style={{ color: colors.price }}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-lg font-body font-title" style={{ color: colors.price }}>
             ${producto.precio.toFixed(2)}
           </span>
           
-          {/* Badge de Estado */}
-          <span
-            className="text-xs px-2 py-1 rounded-full font-semibold"
-            style={{ 
-              backgroundColor: badge.bgColor,
-              color: badge.textColor
-            }}
-          >
-            {badge.text}
-          </span>
+          {/* Badge de Estado - Solo mostrar si está vendido */}
+          {producto.estado === 'vendido' && (
+            <span
+              className="text-xs px-3 py-1 font-medium tracking-wider font-body"
+              style={{ 
+                backgroundColor: badge.bgColor,
+                color: badge.textColor,
+                border: `1px solid ${badge.textColor}`
+              }}
+            >
+              {badge.text}
+            </span>
+          )}
         </div>
 
         {/* Stock (opcional) */}
         {showStock && (
-          <div className="mb-2">
+          <div className="mb-3">
             <span
-              className={`text-xs px-2 py-1 rounded-full font-semibold inline-block ${
-                producto.stock > 0 ? 'bg-green-100' : 'bg-red-100'
-              }`}
-              style={{ color: producto.stock > 0 ? colors.disponible : colors.reservado }}
+              className="text-xs px-3 py-1 font-medium tracking-wider inline-block font-body"
+              style={{ 
+                backgroundColor: producto.stock > 0 ? '#FFFFFF' : '#F5F5F5',
+                color: producto.stock > 0 ? colors.disponible : colors.reservado,
+                border: `1px solid ${producto.stock > 0 ? colors.disponible : colors.reservado}`
+              }}
             >
-              {producto.stock > 0 ? `Stock: ${producto.stock}` : 'Sin stock'}
+              {producto.stock > 0 ? `STOCK: ${producto.stock}` : 'SIN STOCK'}
             </span>
           </div>
         )}
-
-        {/* Botón Ver más */}
-        <button
-          className="w-full py-2 rounded-md text-white font-semibold text-sm hover:opacity-90 transition-opacity"
-          style={{ backgroundColor: colors.button }}
-          onClick={(e) => {
-            e.stopPropagation()
-            onClick?.(producto)
-          }}
-        >
-          Ver más info
-        </button>
       </div>
     </div>
   )

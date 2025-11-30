@@ -45,6 +45,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
   const [tiempoRestante, setTiempoRestante] = useState<string>('')
   const [fullscreen, setFullscreen] = useState(false)
   const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
+  const [expiracionNotificada, setExpiracionNotificada] = useState(false)
 
   // Distancia mínima para considerar un swipe
   const minSwipeDistance = 50
@@ -86,6 +87,16 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
         
         if (diferencia <= 0) {
           setTiempoRestante('⏰ Reserva expirada')
+          
+          // Llamar API para notificar expiración (solo una vez)
+          if (!expiracionNotificada) {
+            setExpiracionNotificada(true)
+            fetch('/api/ventas/expirar', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ productoId: producto.id })
+            }).catch(error => console.error('Error notificando expiración:', error))
+          }
           return
         }
         
@@ -104,12 +115,13 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
       const interval = setInterval(calcularTiempo, 1000)
       return () => clearInterval(interval)
     }
-  }, [producto.estado, producto.reservadoEn, producto.reservaPausada])
+  }, [producto.estado, producto.reservadoEn, producto.reservaPausada, producto.id, expiracionNotificada])
 
   // Reset carga de imágenes al cambiar producto
   useEffect(() => {
     setImagenesCargadas(false)
     setImagenActual(0)
+    setExpiracionNotificada(false) // Reset notificación al cambiar producto
   }, [producto.id])
 
   if (!isOpen) return null
@@ -240,16 +252,15 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
           onClick={onClose}
         >
           <div
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex justify-between items-center p-4 border-b-2" style={{ backgroundColor: '#1F0354', borderColor: '#FFC3E5' }}>
-          <h2 className="text-xl font-bold" style={{ color: '#D1ECFF' }}>{producto.nombre}</h2>
+        <div className="sticky top-0 z-10 flex justify-between items-center p-4 border-b-4 border-black bg-white">
+          <h2 className="text-xl font-bold font-title uppercase tracking-wide text-black">{producto.nombre}</h2>
           <button
             onClick={onClose}
-            className="text-2xl font-bold hover:opacity-80 transition-opacity"
-            style={{ color: '#FF5BC7' }}
+            className="text-3xl font-bold hover:opacity-60 transition-opacity text-black"
           >
             ×
           </button>
@@ -258,15 +269,14 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
         {/* Carrusel de Imágenes */}
         {imagenes.length > 0 && (
           <div 
-            className="relative" 
-            style={{ backgroundColor: '#D1ECFF' }}
+            className="relative bg-gray-50" 
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
           >
             {!imagenesCargadas && (
               <div className="absolute inset-0 flex items-center justify-center z-10">
-                <Spinner size="lg" color="#5E18EB" />
+                <Spinner size="lg" color="#000000" />
               </div>
             )}
             <div 
@@ -291,15 +301,13 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
               <>
                 <button
                   onClick={anteriorImagen}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-80 transition-opacity"
-                  style={{ backgroundColor: '#5E18EB', color: 'white' }}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center font-bold text-xl hover:bg-gray-700 transition-colors bg-black text-white"
                 >
                   ‹
                 </button>
                 <button
                   onClick={siguienteImagen}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-80 transition-opacity"
-                  style={{ backgroundColor: '#5E18EB', color: 'white' }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center font-bold text-xl hover:bg-gray-700 transition-colors bg-black text-white"
                 >
                   ›
                 </button>
@@ -310,9 +318,9 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
                     <button
                       key={index}
                       onClick={() => setImagenActual(index)}
-                      className="w-2 h-2 rounded-full transition-all"
+                      className="h-2 transition-all"
                       style={{
-                        backgroundColor: index === imagenActual ? '#FF5BC7' : '#FFC3E5',
+                        backgroundColor: index === imagenActual ? '#000000' : '#CCCCCC',
                         width: index === imagenActual ? '24px' : '8px'
                       }}
                       aria-label={`Ir a imagen ${index + 1}`}
@@ -321,7 +329,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
                 </div>
                 
                 {/* Contador de imágenes */}
-                <div className="absolute top-4 right-4 px-3 py-1 rounded-full font-semibold text-sm" style={{ backgroundColor: 'rgba(31, 3, 84, 0.8)', color: '#D1ECFF' }}>
+                <div className="absolute top-4 right-4 px-3 py-1 font-semibold text-sm font-body bg-black text-white">
                   {imagenActual + 1} / {imagenes.length}
                 </div>
               </>
@@ -334,36 +342,36 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
           {/* Estado del Producto */}
           {producto.estado && producto.estado !== 'disponible' && (
             <div 
-              className="p-4 rounded-lg text-center"
+              className="p-4 text-center border-2"
               style={{ 
-                backgroundColor: producto.estado === 'reservado' ? '#FFF4E6' : '#E6FFE6',
-                border: `2px solid ${producto.estado === 'reservado' ? '#FF6012' : '#00A86B'}`
+                backgroundColor: producto.estado === 'reservado' ? '#F5F5F5' : '#F5F5F5',
+                borderColor: producto.estado === 'reservado' ? '#666666' : '#000000'
               }}
             >
               {producto.estado === 'reservado' && (
                 <div>
-                  <div className="text-xl font-bold mb-2" style={{ color: '#FF6012' }}>
+                  <div className="text-xl font-bold mb-2 font-title uppercase" style={{ color: '#5E18EB' }}>
                     ⏱️ Producto Reservado
                   </div>
                   {tiempoRestante && (
-                    <div className="text-lg font-semibold mb-2" style={{ color: '#FF6012' }}>
+                    <div className="text-lg font-semibold mb-2 font-body text-gray-700">
                       {tiempoRestante}
                     </div>
                   )}
-                  <p className="text-sm" style={{ color: '#1F0354' }}>
+                  <p className="text-sm font-body text-gray-600">
                     Este producto está reservado por otro comprador.
                   </p>
-                  <p className="text-sm font-semibold mt-2" style={{ color: '#FF6012' }}>
+                  <p className="text-sm font-semibold mt-2 font-body text-black">
                     Si no se confirma la venta en el tiempo indicado, el producto volverá a estar disponible automáticamente.
                   </p>
                 </div>
               )}
               {producto.estado === 'vendido' && (
                 <div>
-                  <div className="text-xl font-bold mb-2" style={{ color: '#00A86B' }}>
+                  <div className="text-xl font-bold mb-2 font-title uppercase text-black">
                     ✅ Producto Vendido
                   </div>
-                  <p className="text-sm" style={{ color: '#1F0354' }}>
+                  <p className="text-sm font-body text-gray-600">
                     Este producto ya ha sido vendido y no está disponible.
                   </p>
                 </div>
@@ -373,7 +381,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
 
           {/* Precio */}
           <div className="flex justify-between items-center">
-            <span className="text-3xl font-bold" style={{ color: '#5E18EB' }}>
+            <span className="text-3xl font-body font-title text-black">
               ${producto.precio.toFixed(2)}
             </span>
           </div>
@@ -381,8 +389,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
           {/* Descripción */}
           {producto.descripcion && (
             <div>
-              <h3 className="font-semibold mb-2" style={{ color: '#1F0354' }}>Descripción</h3>
-              <p style={{ color: '#5E18EB' }}>{producto.descripcion}</p>
+              <p className="font-body text-gray-700">{producto.descripcion}</p>
             </div>
           )}
 
@@ -416,8 +423,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
           <button
             onClick={handleAgregarCarrito}
             disabled={agregando || producto.estado !== 'disponible'}
-            className="w-full py-3 rounded-lg font-bold text-white text-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            style={{ backgroundColor: '#FF5BC7' }}
+            className="w-full py-3 font-bold text-white text-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-title uppercase tracking-wide bg-black"
           >
             {agregando ? (
               <>
@@ -443,15 +449,14 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
           {/* Botón cerrar */}
           <button
             onClick={() => setFullscreen(false)}
-            className="absolute top-4 right-4 z-10 w-12 h-12 rounded-full flex items-center justify-center text-3xl font-bold hover:opacity-80 transition-opacity"
-            style={{ backgroundColor: 'rgba(255, 91, 199, 0.9)', color: 'white' }}
+            className="absolute top-4 right-4 z-10 w-12 h-12 flex items-center justify-center text-3xl font-bold hover:bg-gray-700 transition-colors bg-black text-white"
           >
             ×
           </button>
 
           {/* Contador de imágenes */}
           {imagenes.length > 1 && (
-            <div className="absolute top-4 left-4 z-10 px-4 py-2 rounded-full font-semibold text-lg" style={{ backgroundColor: 'rgba(31, 3, 84, 0.8)', color: '#D1ECFF' }}>
+            <div className="absolute top-4 left-4 z-10 px-4 py-2 font-semibold text-lg font-body bg-white text-black">
               {imagenActual + 1} / {imagenes.length}
             </div>
           )}
@@ -483,8 +488,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
                   e.stopPropagation()
                   anteriorImagen()
                 }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full flex items-center justify-center font-bold text-3xl hover:opacity-80 transition-opacity z-10"
-                style={{ backgroundColor: 'rgba(94, 24, 235, 0.9)', color: 'white' }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 flex items-center justify-center font-bold text-3xl hover:bg-gray-700 transition-colors z-10 bg-black text-white"
               >
                 ‹
               </button>
@@ -493,8 +497,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
                   e.stopPropagation()
                   siguienteImagen()
                 }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full flex items-center justify-center font-bold text-3xl hover:opacity-80 transition-opacity z-10"
-                style={{ backgroundColor: 'rgba(94, 24, 235, 0.9)', color: 'white' }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 flex items-center justify-center font-bold text-3xl hover:bg-gray-700 transition-colors z-10 bg-black text-white"
               >
                 ›
               </button>
@@ -508,9 +511,9 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
                       e.stopPropagation()
                       setImagenActual(index)
                     }}
-                    className="w-3 h-3 rounded-full transition-all"
+                    className="h-3 transition-all"
                     style={{
-                      backgroundColor: index === imagenActual ? '#FF5BC7' : '#FFC3E5',
+                      backgroundColor: index === imagenActual ? '#FFFFFF' : '#666666',
                       width: index === imagenActual ? '32px' : '12px'
                     }}
                     aria-label={`Ir a imagen ${index + 1}`}
@@ -521,7 +524,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
           )}
 
           {/* Hint de cerrar */}
-          <div className="absolute bottom-4 right-4 px-4 py-2 rounded-lg text-sm font-medium z-10" style={{ backgroundColor: 'rgba(31, 3, 84, 0.8)', color: '#D1ECFF' }}>
+          <div className="absolute bottom-4 right-4 px-4 py-2 text-sm font-medium z-10 font-body bg-white text-black">
             Click para cerrar
           </div>
         </div>

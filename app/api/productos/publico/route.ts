@@ -22,6 +22,7 @@ export async function GET(request: Request) {
         select: {
           id: true,
           nombre: true,
+          descripcion: true,
           precio: true,
           imagenUrl: true,
           estado: true,

@@ -34,7 +34,7 @@ export default function Confirm({
       onClick={onCancel}
     >
       <div 
-        className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border-4 animate-scale-in"
+        className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border-2 animate-scale-in"
         style={{ borderColor: '#FF5BC7', backgroundColor: '#FFF0FB' }}
         onClick={(e) => e.stopPropagation()}
       >

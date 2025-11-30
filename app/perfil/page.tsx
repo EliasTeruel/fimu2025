@@ -145,13 +145,13 @@ export default function PerfilPage() {
   }
 
   if (loading) {
-    return <LoadingScreen backgroundColor="#D1ECFF" textColor="#5E18EB" />
+    return <LoadingScreen />
   }
 
   return (
     <>
       <Navbar />
-      <div className="min-h-screen" style={{ backgroundColor: '#D1ECFF', paddingTop: '100px' }}>
+      <div className="min-h-screen bg-white" style={{ paddingTop: '100px' }}>
         {/* Alert */}
       {alertConfig?.show && (
         <Alert
@@ -165,21 +165,19 @@ export default function PerfilPage() {
       <div className="max-w-4xl mx-auto py-8 px-4">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold" style={{ color: '#1F0354' }}>
+          <h1 className="text-4xl font-bold font-title uppercase tracking-wide text-black">
             Mi Perfil
           </h1>
           <div className="flex gap-4">
             <button
               onClick={() => router.push('/')}
-              className="px-4 py-2 rounded-md text-white font-semibold hover:opacity-90 transition"
-              style={{ backgroundColor: '#5E18EB' }}
+              className="px-4 py-2 text-white font-semibold hover:bg-gray-700 transition-colors bg-black font-body uppercase tracking-wide"
             >
               Volver a Inicio
             </button>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 rounded-md text-white font-semibold hover:opacity-90 transition"
-              style={{ backgroundColor: '#FF6012' }}
+              className="px-4 py-2 text-white font-semibold hover:bg-gray-700 transition-colors bg-black font-body uppercase tracking-wide"
             >
               Cerrar Sesión
             </button>
@@ -187,26 +185,25 @@ export default function PerfilPage() {
         </div>
 
         {/* Información del perfil */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <div className="border-b pb-4 mb-4" style={{ borderColor: '#FFC3E5' }}>
-            <h2 className="text-2xl font-semibold" style={{ color: '#1F0354' }}>
+        <div className="bg-white p-6 mb-6 border-2 border-black">
+          <div className="border-b pb-4 mb-4 border-black">
+            <h2 className="text-2xl font-semibold font-title uppercase text-black">
               Información de la Cuenta
             </h2>
           </div>
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+              <label className="block text-sm font-medium mb-1 font-body text-black">
                 Email
               </label>
               <input
                 type="text"
                 value={usuario?.email || ''}
                 disabled
-                className="w-full px-3 py-2 border-2 rounded-md bg-gray-100"
-                style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                className="w-full px-3 py-2 border-2 bg-gray-100 border-black text-black font-body"
               />
-              <p className="text-sm mt-1 text-gray-500">
+              <p className="text-sm mt-1 text-gray-500 font-body">
                 El email no se puede modificar
               </p>
             </div>
@@ -214,24 +211,23 @@ export default function PerfilPage() {
             
 
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+              <label className="block text-sm font-medium mb-1 font-body text-black">
                 Miembro desde
               </label>
               <input
                 type="text"
                 value={usuario?.createdAt ? new Date(usuario.createdAt).toLocaleDateString('es-AR') : ''}
                 disabled
-                className="w-full px-3 py-2 border-2 rounded-md bg-gray-100"
-                style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                className="w-full px-3 py-2 border-2 bg-gray-100 border-black text-black font-body"
               />
             </div>
           </div>
         </div>
 
         {/* Formulario de edición */}
-        <form onSubmit={handleGuardar} className="bg-white rounded-lg shadow-lg p-6">
-          <div className="border-b pb-4 mb-6" style={{ borderColor: '#FFC3E5' }}>
-            <h2 className="text-2xl font-semibold" style={{ color: '#1F0354' }}>
+        <form onSubmit={handleGuardar} className="bg-white p-6 border-2 border-black">
+          <div className="border-b pb-4 mb-6 border-black">
+            <h2 className="text-2xl font-semibold font-title uppercase text-black">
               Datos Personales
             </h2>
           </div>
@@ -239,7 +235,7 @@ export default function PerfilPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="nombre" className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+                <label htmlFor="nombre" className="block text-sm font-medium mb-1 font-body text-black">
                   Nombre *
                 </label>
                 <input
@@ -248,13 +244,12 @@ export default function PerfilPage() {
                   required
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
-                  style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                  className="w-full px-3 py-2 border-2 focus:outline-none focus:ring-2 focus:ring-black border-black text-black font-body"
                 />
               </div>
 
               <div>
-                <label htmlFor="apellido" className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+                <label htmlFor="apellido" className="block text-sm font-medium mb-1 font-body text-black">
                   Apellido *
                 </label>
                 <input
@@ -263,23 +258,21 @@ export default function PerfilPage() {
                   required
                   value={apellido}
                   onChange={(e) => setApellido(e.target.value)}
-                  className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
-                  style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                  className="w-full px-3 py-2 border-2 focus:outline-none focus:ring-2 focus:ring-black border-black text-black font-body"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="redSocial" className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+                <label htmlFor="redSocial" className="block text-sm font-medium mb-1 font-body text-black">
                   Red Social
                 </label>
                 <select
                   id="redSocial"
                   value={redSocial}
                   onChange={(e) => setRedSocial(e.target.value)}
-                  className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
-                  style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                  className="w-full px-3 py-2 border-2 focus:outline-none focus:ring-2 focus:ring-black border-black text-black font-body"
                 >
                   <option value="instagram">Instagram</option>
                   <option value="facebook">Facebook</option>
@@ -289,7 +282,7 @@ export default function PerfilPage() {
               </div>
 
               <div>
-                <label htmlFor="nombreRedSocial" className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+                <label htmlFor="nombreRedSocial" className="block text-sm font-medium mb-1 font-body text-black">
                   Usuario
                 </label>
                 <input
@@ -297,15 +290,14 @@ export default function PerfilPage() {
                   type="text"
                   value={nombreRedSocial}
                   onChange={(e) => setNombreRedSocial(e.target.value)}
-                  className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
-                  style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                  className="w-full px-3 py-2 border-2 focus:outline-none focus:ring-2 focus:ring-black border-black text-black font-body"
                   placeholder="@usuario"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="whatsapp" className="block text-sm font-medium mb-1" style={{ color: '#1F0354' }}>
+              <label htmlFor="whatsapp" className="block text-sm font-medium mb-1 font-body text-black">
                 WhatsApp (opcional)
               </label>
               <input
@@ -313,8 +305,7 @@ export default function PerfilPage() {
                 type="tel"
                 value={whatsapp}
                 onChange={(e) => setWhatsapp(e.target.value)}
-                className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
-                style={{ borderColor: '#FFC3E5', color: '#1F0354' }}
+                className="w-full px-3 py-2 border-2 focus:outline-none focus:ring-2 focus:ring-black border-black text-black font-body"
                 placeholder="+54 9 11 1234-5678"
               />
             </div>
@@ -324,18 +315,16 @@ export default function PerfilPage() {
             <button
               type="button"
               onClick={() => router.push('/')}
-              className="px-6 py-2 rounded-md font-semibold hover:opacity-90 transition"
-              style={{ backgroundColor: '#FFC3E5', color: '#1F0354' }}
+              className="px-6 py-2 font-semibold hover:bg-gray-200 transition bg-gray-100 text-black font-body uppercase tracking-wide"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={guardando}
-              className="px-6 py-2 rounded-md text-white font-semibold hover:opacity-90 transition disabled:opacity-50 flex items-center gap-2"
-              style={{ backgroundColor: '#FF5BC7' }}
+              className="px-6 py-2 text-white font-semibold hover:bg-gray-700 transition disabled:opacity-50 flex items-center gap-2 bg-black font-body uppercase tracking-wide"
             >
-              {guardando && <Spinner />}
+              {guardando && <Spinner size="sm" color="#ffffff" />}
               {guardando ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>
