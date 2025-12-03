@@ -46,6 +46,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
   const [fullscreen, setFullscreen] = useState(false)
   const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
   const [expiracionNotificada, setExpiracionNotificada] = useState(false)
+  const [yaEnCarrito, setYaEnCarrito] = useState(false)
 
   // Distancia mínima para considerar un swipe
   const minSwipeDistance = 50
@@ -122,7 +123,44 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
     setImagenesCargadas(false)
     setImagenActual(0)
     setExpiracionNotificada(false) // Reset notificación al cambiar producto
+    setYaEnCarrito(false) // Reset estado del carrito
   }, [producto.id])
+
+  // Verificar si el producto ya está en el carrito
+  useEffect(() => {
+    const verificarEnCarrito = async () => {
+      try {
+        const sessionId = getSessionId()
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        let url = `/api/carrito?sessionId=${sessionId}`
+        
+        if (user) {
+          const resUsuario = await fetch(`/api/usuarios?supabaseId=${user.id}`)
+          if (resUsuario.ok) {
+            const usuario = await resUsuario.json()
+            if (usuario?.id) {
+              url = `/api/carrito?usuarioId=${usuario.id}`
+            }
+          }
+        }
+        
+        const response = await fetch(url)
+        if (response.ok) {
+          const carrito = await response.json()
+          const estaEnCarrito = Array.isArray(carrito) && carrito.some(item => item.productoId === producto.id)
+          setYaEnCarrito(estaEnCarrito)
+        }
+      } catch (error) {
+        console.error('Error verificando carrito:', error)
+      }
+    }
+    
+    if (isOpen) {
+      verificarEnCarrito()
+    }
+  }, [isOpen, producto.id])
 
   if (!isOpen) return null
 
@@ -196,10 +234,18 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
       if (!response.ok) {
         const error = await response.json()
         console.error('❌ Error del servidor:', error) // Debug
-        setAlertConfig({ show: true, message: error.error || 'Error al agregar al carrito', type: 'error' })
+        
+        // Si el producto ya está en el carrito, actualizar el estado
+        if (error.yaEnCarrito) {
+          setYaEnCarrito(true)
+          setAlertConfig({ show: true, message: 'Este producto ya está en tu carrito', type: 'info' })
+        } else {
+          setAlertConfig({ show: true, message: error.error || 'Error al agregar al carrito', type: 'error' })
+        }
         return
       }
 
+      setYaEnCarrito(true) // Actualizar estado después de agregar
       setAlertConfig({ show: true, message: `✅ ${producto.nombre} agregado al carrito`, type: 'success' })
       onClose()
     } catch (error) {
@@ -379,6 +425,12 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
             </div>
           )}
 
+          {/* Descripción */}
+          {producto.descripcion && (
+            <div>
+              <p className="font-body text-gray-700">{producto.descripcion}</p>
+            </div>
+          )}
           {/* Precio */}
           <div className="flex justify-between items-center">
             <span className="text-3xl font-body font-title text-black">
@@ -386,12 +438,6 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
             </span>
           </div>
 
-          {/* Descripción */}
-          {producto.descripcion && (
-            <div>
-              <p className="font-body text-gray-700">{producto.descripcion}</p>
-            </div>
-          )}
 
           {/* Selector de Cantidad - Comentado: Solo 1 unidad por producto */}
           {/* {producto.stock > 0 && (
@@ -422,7 +468,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
           {/* Botón Agregar al Carrito */}
           <button
             onClick={handleAgregarCarrito}
-            disabled={agregando || producto.estado !== 'disponible'}
+            disabled={agregando || producto.estado !== 'disponible' || yaEnCarrito}
             className="w-full py-3 font-bold text-white text-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-title uppercase tracking-wide bg-black"
           >
             {agregando ? (
@@ -431,6 +477,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
                 <span>Agregando...</span>
               </>
             ) : 
+             yaEnCarrito ? '✓ Ya en tu Carrito' :
              producto.estado === 'reservado' ? '⏱️ Producto Reservado' :
              producto.estado === 'vendido' ? '✅ Ya Vendido' :
              '🛒 Agregar al Carrito'}

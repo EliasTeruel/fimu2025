@@ -107,13 +107,9 @@ export async function POST(request: Request) {
       )
     }
 
-    if (producto.stock < cantidad) {
-      return NextResponse.json(
-        { error: 'Stock insuficiente' },
-        { status: 400 }
-      )
-    }
-
+    // No validar stock aquí - permitir que múltiples usuarios agreguen el mismo producto
+    // La validación de disponibilidad se hace al momento de RESERVAR
+    
     // Verificar si el producto ya está en el carrito (por usuario o por sesión)
     const whereClause = usuarioId
       ? { productoId, usuarioId: parseInt(usuarioId) }
@@ -123,57 +119,37 @@ export async function POST(request: Request) {
       where: whereClause
     })
 
-    let item
-
+    // Si el producto ya está en el carrito, no permitir agregarlo de nuevo
     if (itemExistente) {
-      // Actualizar cantidad
-      const nuevaCantidad = itemExistente.cantidad + cantidad
-      
-      if (producto.stock < nuevaCantidad) {
-        return NextResponse.json(
-          { error: 'Stock insuficiente para agregar más unidades' },
-          { status: 400 }
-        )
-      }
-
-      item = await prisma.carritoItem.update({
-        where: { id: itemExistente.id },
-        data: { cantidad: nuevaCantidad },
-        include: {
-          producto: {
-            include: {
-              imagenes: {
-                orderBy: { orden: 'asc' }
-              }
-            }
-          }
-        }
-      })
-    } else {
-      // Crear nuevo item
-      const createData: any = {
-        productoId,
-        cantidad,
-        sessionId
-      }
-      
-      if (usuarioId) {
-        createData.usuarioId = parseInt(usuarioId)
-      }
-
-      item = await prisma.carritoItem.create({
-        data: createData,
-        include: {
-          producto: {
-            include: {
-              imagenes: {
-                orderBy: { orden: 'asc' }
-              }
-            }
-          }
-        }
-      })
+      return NextResponse.json(
+        { error: 'Este producto ya está en tu carrito', yaEnCarrito: true },
+        { status: 400 }
+      )
     }
+
+    // Crear nuevo item
+    const createData: any = {
+      productoId,
+      cantidad,
+      sessionId
+    }
+    
+    if (usuarioId) {
+      createData.usuarioId = parseInt(usuarioId)
+    }
+
+    const item = await prisma.carritoItem.create({
+      data: createData,
+      include: {
+        producto: {
+          include: {
+            imagenes: {
+              orderBy: { orden: 'asc' }
+            }
+          }
+        }
+      }
+    })
 
     return NextResponse.json(item, { status: 201 })
   } catch (error) {

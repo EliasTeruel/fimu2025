@@ -32,6 +32,7 @@ interface Producto {
   reservadoEn?: Date | null
   reservaPausada?: boolean
   pausadoEn?: Date | null
+  compradorInfo?: string | null
 }
 
 interface CarritoItem {
@@ -124,9 +125,20 @@ export default function CarritoPage() {
       const nuevos: Record<number, string> = {}
       items.forEach(item => {
         if (item.producto.estado === 'reservado' && item.producto.reservadoEn) {
+          // Verificar si el producto fue reservado por MÍ o por OTRO cliente
+          const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
+          const miNombreCompleto = datosUsuario ? `${datosUsuario.nombre} ${datosUsuario.apellido}`.trim() : ''
+          
+          const reservadoPorOtro = nombreEnCompradorInfo !== miNombreCompleto && miNombreCompleto !== ''
+          
+          // Solo calcular tiempo si LO RESERVÉ YO
+          if (reservadoPorOtro) {
+            return // No calcular cronómetro para productos reservados por otros
+          }
+          
           // Si está pausado, mostrar mensaje especial y NO RECALCULAR
           if (item.producto.reservaPausada) {
-            nuevos[item.producto.id] = '⏸️ PAUSADO POR ADMIN'
+            nuevos[item.id] = '⏸️ PAUSADO POR ADMIN' // item.id es único por CarritoItem
             return // ⚠️ Importante: No calcular tiempo cuando está pausado
           }
 
@@ -152,8 +164,8 @@ export default function CarritoPage() {
             expira.setTime(reserva.getTime() + 30 * 60 * 1000)
           }
           
-          // Usar función de la librería para formatear
-          nuevos[item.producto.id] = calcularTiempoRestante(reserva, expira)
+          // Usar función de la librería para formatear (item.id es único por CarritoItem)
+          nuevos[item.id] = calcularTiempoRestante(reserva, expira)
         }
       })
       setTiemposRestantes(nuevos)
@@ -162,7 +174,7 @@ export default function CarritoPage() {
     calcularTiempos()
     const interval = setInterval(calcularTiempos, 1000)
     return () => clearInterval(interval)
-  }, [items])
+  }, [items, datosUsuario]) // Agregar datosUsuario a las dependencias
 
   const cargarCarrito = useCallback(async () => {
     if (!sessionId) {
@@ -228,6 +240,26 @@ export default function CarritoPage() {
     return () => clearInterval(interval)
   }, [sessionId, cargarCarrito])
 
+  // Eliminar automáticamente productos vendidos del carrito
+  useEffect(() => {
+    const productosVendidos = items.filter(item => item.producto.estado === 'vendido')
+    
+    if (productosVendidos.length > 0) {
+      productosVendidos.forEach(async (item) => {
+        try {
+          await fetch(`/api/carrito/${item.id}`, {
+            method: 'DELETE'
+          })
+        } catch (error) {
+          console.error('Error al eliminar producto vendido:', error)
+        }
+      })
+      
+      // Recargar carrito después de eliminar
+      setTimeout(() => cargarCarrito(), 1000)
+    }
+  }, [items, cargarCarrito])
+
   const obtenerImagenPrincipal = (producto: Producto): string => {
     const imagenPrincipal = producto.imagenes?.find(img => img.esPrincipal)
     if (imagenPrincipal) return imagenPrincipal.url
@@ -290,23 +322,41 @@ export default function CarritoPage() {
   }
 
   const vaciarCarrito = async () => {
+    // Contar productos no reservados
+    const productosNoReservados = items.filter(item => item.producto.estado !== 'reservado')
+    const mensaje = productosNoReservados.length === items.length
+      ? '¿Vaciar todo el carrito?'
+      : `¿Eliminar ${productosNoReservados.length} producto(s) del carrito? (Los productos reservados se mantendrán)`
+
     setConfirmConfig({
       show: true,
-      message: '¿Vaciar todo el carrito?',
+      message: mensaje,
       onConfirm: async () => {
         setConfirmConfig(null)
         setVaciandoCarrito(true)
         try {
-          const response = await fetch(`/api/carrito?sessionId=${sessionId}`, {
-            method: 'DELETE'
-          })
+          // Eliminar solo productos no reservados
+          const idsAEliminar = productosNoReservados.map(item => item.id)
+          
+          for (const id of idsAEliminar) {
+            const response = await fetch(`/api/carrito/${id}`, {
+              method: 'DELETE'
+            })
 
-          if (!response.ok) {
-            setAlertConfig({ show: true, message: 'Error al vaciar el carrito', type: 'error' })
-            return
+            if (!response.ok) {
+              console.error(`Error al eliminar item ${id}`)
+            }
           }
 
           await cargarCarrito()
+          
+          if (productosNoReservados.length > 0) {
+            setAlertConfig({ 
+              show: true, 
+              message: `${productosNoReservados.length} producto(s) eliminado(s)`, 
+              type: 'success' 
+            })
+          }
         } catch (error) {
           console.error('Error al vaciar carrito:', error)
           setAlertConfig({ show: true, message: 'Error al vaciar el carrito', type: 'error' })
@@ -319,7 +369,17 @@ export default function CarritoPage() {
 
   const calcularTotal = () => {
     // Suma simple de precios - 1 unidad por producto
+    // Excluir productos reservados por OTROS clientes
     return items.reduce((total, item) => {
+      const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
+      const miNombreCompleto = datosUsuario ? `${datosUsuario.nombre} ${datosUsuario.apellido}`.trim() : ''
+      const reservadoPorOtro = item.producto.estado === 'reservado' && 
+        nombreEnCompradorInfo !== miNombreCompleto &&
+        miNombreCompleto !== ''
+      
+      // No sumar productos reservados por otros
+      if (reservadoPorOtro) return total
+      
       return total + item.producto.precio
     }, 0)
   }
@@ -341,9 +401,19 @@ export default function CarritoPage() {
     setProcesandoPago(true)
 
     try {
-      // Separar productos: nuevos (disponibles) vs ya reservados
+      // Nombre completo del usuario actual para comparar
+      const miNombreCompleto = `${contactoData.nombre} ${contactoData.apellido}`.trim()
+      
+      // Separar productos: nuevos (disponibles) vs ya reservados POR MÍ
       const productosNuevos = items.filter(item => item.producto.estado === 'disponible')
-      const productosYaReservados = items.filter(item => item.producto.estado === 'reservado')
+      
+      const productosYaReservados = items.filter(item => {
+        if (item.producto.estado !== 'reservado') return false
+        
+        // Solo contar como "ya reservado" si LO RESERVÉ YO
+        const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
+        return nombreEnCompradorInfo === miNombreCompleto
+      })
       
       // Solo reservar si hay productos nuevos
       if (productosNuevos.length > 0) {
@@ -376,6 +446,8 @@ export default function CarritoPage() {
       }
 
       // 2. Enviar notificación por WhatsApp (con TODOS los productos)
+      // ⚠️ TEMPORALMENTE COMENTADO PARA TESTING
+      /*
       const adminPhone = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP || '+5491123882449'
       
       try {
@@ -407,6 +479,7 @@ export default function CarritoPage() {
         console.error('Error al enviar notificación WhatsApp:', errorWhatsApp)
         // No bloqueamos la reserva si falla el WhatsApp
       }
+      */
 
       const mensajeExtra = productosYaReservados.length > 0
         ? `\n\n(${productosYaReservados.length} producto(s) ya estaban reservados - tiempo extendido)`
@@ -418,7 +491,7 @@ export default function CarritoPage() {
       setAlertConfig({ 
         show: true, 
         title: '✅ Reserva confirmada!',
-        message: `Gracias ${contactoData.nombre}! ${mensajeExpiracion}${mensajeExtra}\n\n💰 TOTAL A PAGAR: $${calcularTotal().toFixed(2)}\n\n📱 DATOS DE PAGO:\nAlias: fimu.vintage\nNombre: Elias Teruel\n\n📸 Enviá el comprobante de transferencia por WhatsApp al ${process.env.NEXT_PUBLIC_ADMIN_WHATSAPP}\n\n⏰ Si no se confirma el pago antes de que expire la reserva, se cancelará automáticamente.`, 
+        message: `Gracias ${contactoData.nombre}! ${mensajeExpiracion}${mensajeExtra}\n\n💰 TOTAL A PAGAR: $${calcularTotal().toFixed(2)}\n\n📸 DATOS DE PAGO:\nAlias: fimu.vintage\nNombre: Elias Teruel\n\n📱 Enviá el comprobante por:\n• WhatsApp: ${process.env.NEXT_PUBLIC_ADMIN_WHATSAPP}\n• Instagram: @fimu_vintage\n\n⏰ Si no se confirma el pago antes de que expire la reserva, se cancelará automáticamente.`, 
         type: 'success' 
       })
 
@@ -449,7 +522,7 @@ export default function CarritoPage() {
           >
             ← Volver
           </Link>
-          {items.length > 0 && (
+          {items.length > 0 && items.some(item => item.producto.estado !== 'reservado') && (
             <button
               onClick={vaciarCarrito}
               disabled={vaciandoCarrito}
@@ -489,24 +562,50 @@ export default function CarritoPage() {
           <>
             {/* Lista de Items */}
             <div className="space-y-4 mb-6">
-              {items.map((item) => (
+              {items.map((item) => {
+                // Verificar si el producto está reservado por OTRO cliente
+                // El compradorInfo tiene formato: "Nombre Apellido | Tel: XXX | red: YYY"
+                // Extraer solo el nombre del compradorInfo para comparar
+                const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
+                const miNombreCompleto = datosUsuario ? `${datosUsuario.nombre} ${datosUsuario.apellido}`.trim() : ''
+                
+                const reservadoPorOtro = item.producto.estado === 'reservado' && 
+                  nombreEnCompradorInfo !== miNombreCompleto &&
+                  miNombreCompleto !== '' // Solo verificar si tenemos datos del usuario
+                
+                return (
                 <div
                   key={item.id}
                   className="bg-white p-4 border-2"
                   style={{ 
-                    borderColor: item.producto.estado === 'reservado' ? '#666666' : '#000000',
-                    backgroundColor: item.producto.estado === 'reservado' ? '#F5F5F5' : '#fff'
+                    borderColor: reservadoPorOtro ? '#DC2626' : item.producto.estado === 'reservado' ? '#666666' : '#000000',
+                    backgroundColor: reservadoPorOtro ? '#FEE2E2' : item.producto.estado === 'reservado' ? '#F5F5F5' : '#fff'
                   }}
                 >
-                  {/* Badge de Estado Reservado */}
-                  {item.producto.estado === 'reservado' && (
+                  {/* Producto Reservado por OTRO cliente */}
+                  {reservadoPorOtro && (
+                    <div className="mb-3 p-4 border-2 border-red-600 bg-red-50">
+                      <p className="font-bold text-xl mb-2 font-title uppercase text-red-600">
+                        ⚠️ Producto Ya Reservado
+                      </p>
+                      <p className="text-sm mb-2 font-body text-gray-700">
+                        Este producto fue reservado por otro comprador mientras estaba en tu carrito.
+                      </p>
+                      <p className="text-sm font-semibold font-body text-gray-700">
+                        Ya no está disponible para compra. Por favor, elimínalo de tu carrito.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Badge de Estado Reservado - Solo si LO RESERVÉ YO */}
+                  {item.producto.estado === 'reservado' && !reservadoPorOtro && (
                     <div className="mb-3 p-4 border-2 border-black bg-gray-100">
                       <p className="font-bold text-xl mb-2 font-title uppercase text-black">
                         Producto Reservado
                       </p>
-                      {tiemposRestantes[item.producto.id] && (
+                      {tiemposRestantes[item.id] && (
                         <p className="font-semibold text-lg mb-2 font-body text-gray-700">
-                          {tiemposRestantes[item.producto.id]}
+                          {tiemposRestantes[item.id]}
                         </p>
                       )}
                       <p className="text-sm mb-1 font-body text-gray-600">
@@ -529,7 +628,7 @@ export default function CarritoPage() {
                           Nombre: <span className="text-black">Elias Teruel</span>
                         </p>
                         <p className="text-xs mt-2 font-body text-gray-600">
-                          📸 Una vez realizada la transferencia, enviá el comprobante por WhatsApp
+                          📸 Una vez realizada la transferencia, enviá el comprobante por Instagram o WhatsApp
                         </p>
                       </div>
                     </div>
@@ -558,8 +657,8 @@ export default function CarritoPage() {
                       </p>
                     </div>
 
-                    {/* Eliminar - Solo si no está reservado */}
-                    {item.producto.estado !== 'reservado' && (
+                    {/* Eliminar - Solo si no está reservado o si está reservado por otro */}
+                    {(item.producto.estado !== 'reservado' || reservadoPorOtro) && (
                       <div className="flex flex-col items-end justify-between">
                         <button
                           onClick={() => eliminarItem(item.id)}
@@ -579,29 +678,40 @@ export default function CarritoPage() {
                     )}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
 
             {/* Total y Checkout */}
             <div className="bg-white p-6 border-2 border-black">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xl font-bold font-title uppercase text-black">
-                  Total:
-                </span>
-                <span className="text-3xl font-bold font-title text-black">
-                  ${calcularTotal().toFixed(2)}
-                </span>
-              </div>
-              
               {/* Separar productos por estado */}
               {(() => {
                 const productosDisponibles = items.filter(item => item.producto.estado === 'disponible')
-                const productosReservados = items.filter(item => item.producto.estado === 'reservado')
+                const productosReservados = items.filter(item => {
+                  if (item.producto.estado !== 'reservado') return false
+                  const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
+                  const miNombreCompleto = datosUsuario ? `${datosUsuario.nombre} ${datosUsuario.apellido}`.trim() : ''
+                  // Solo contar como reservados si son MIS reservas (y tengo datos de usuario)
+                  return nombreEnCompradorInfo === miNombreCompleto && miNombreCompleto !== ''
+                })
                 const hayDisponibles = productosDisponibles.length > 0
                 const hayReservados = productosReservados.length > 0
+                const totalComprable = calcularTotal()
+                const hayProductosComprables = totalComprable > 0
 
                 return (
                   <>
+                    {/* Mostrar total solo si hay productos comprables */}
+                    {hayProductosComprables && (
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-xl font-bold font-title uppercase text-black">
+                          Total:
+                        </span>
+                        <span className="text-3xl font-bold font-title text-black">
+                          ${totalComprable.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    
                     {/* Botón para reservar productos disponibles */}
                     {hayDisponibles && (
                       <button

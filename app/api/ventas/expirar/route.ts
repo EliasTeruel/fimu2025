@@ -30,18 +30,16 @@ export async function POST(req: NextRequest) {
     // Enviar notificación de WhatsApp al admin
     if (admin && admin.whatsapp && producto.compradorInfo) {
       try {
-        const mensaje = `⏰ *RESERVA EXPIRADA*\n\n` +
-          `El producto "${producto.nombre}" reservado por ${producto.compradorInfo} ha expirado.\n\n` +
-          `El producto se pondrá disponible automáticamente en 5 minutos.`;
-
         await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/notificaciones/whatsapp`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            to: admin.whatsapp,
-            message: mensaje,
+            adminPhone: admin.whatsapp,
+            clienteNombre: `⏰ EXPIRÓ: ${producto.compradorInfo}`,
+            productos: [{ nombre: producto.nombre, precio: producto.precio }],
+            total: producto.precio
           }),
         });
 
@@ -51,29 +49,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Programar la liberación del producto en 5 minutos
-    setTimeout(async () => {
-      try {
-        await prisma.producto.update({
-          where: { id: productoId },
-          data: {
-            estado: 'disponible',
-            reservadoEn: null,
-            compradorInfo: null,
-            reservaPausada: false,
-            pausadoEn: null,
-          },
-        });
+    // Liberar el producto inmediatamente
+    await prisma.producto.update({
+      where: { id: productoId },
+      data: {
+        estado: 'disponible',
+        reservadoEn: null,
+        compradorInfo: null,
+        reservaPausada: false,
+        pausadoEn: null,
+      },
+    });
 
-        console.log(`✅ Producto ${productoId} liberado automáticamente después de 5 minutos`);
-      } catch (error) {
-        console.error('❌ Error liberando producto:', error);
-      }
-    }, 5 * 60 * 1000); // 5 minutos
+    console.log(`✅ Producto ${productoId} liberado automáticamente`);
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Notificación enviada, producto se liberará en 5 minutos' 
+      message: 'Producto liberado y notificación enviada' 
     });
 
   } catch (error) {

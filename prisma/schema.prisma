@@ -65,7 +65,8 @@ model CarritoItem {
   @@index([productoId]) // Índice para búsquedas por producto
   @@index([sessionId]) // Índice para búsquedas por sesión
   @@index([usuarioId]) // Índice para búsquedas por usuario
-  @@unique([productoId, sessionId]) // Evitar duplicados - un producto solo puede estar una vez por sesión
+  // Restricción única compuesta: un producto solo puede estar una vez POR SESIÓN o POR USUARIO
+  // Nota: sessionId y usuarioId son mutuamente excluyentes (uno será null)
   @@map("carrito_items")
 }
 

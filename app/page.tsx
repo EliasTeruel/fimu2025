@@ -190,7 +190,11 @@ export default function Home() {
                     setPage(1)
                     setProductos([])
                   }}
-                  className="w-full py-8 bg-black text-white font-bold transition-all hover:bg-gray-800 relative uppercase tracking-widest text-lg border-2 border-black font-title"
+                  className="w-full py-8 text-white font-bold transition-all hover:bg-gray-800 relative uppercase tracking-widest text-lg border-black font-title"
+                  style={{
+                    backgroundColor: cat.categoria === 'perchero' ? '#ffc3e5' : '#D1ECFF',
+                    color: cat.categoria === 'perchero' ? '#ff5bc7' : '#1F0354'
+                  }}
                 >
                   <div className="flex flex-col items-center gap-3">
                     <span className="text-base">
@@ -199,7 +203,7 @@ export default function Home() {
                         : 'VER PERCHERO'
                       }
                     </span>
-                    <span className="text-xs font-normal tracking-normal opacity-80 font-accent">
+                    <span className="text-xs tracking-normal opacity-80 font-body">
                       {cat.categoria === 'fimu'
                         ? 'Piezas únicas · Estilo propio'
                         : 'Looks vintage · Segunda mano'

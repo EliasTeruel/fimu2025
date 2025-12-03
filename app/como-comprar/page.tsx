@@ -37,7 +37,7 @@ export default function ComoComprarPage() {
                   Agrega al Carrito
                 </h2>
                 <p className="font-body text-gray-700">
-                  Cuando encuentres algo que te encante, haz click en "Agregar al Carrito". Puedes seguir navegando y agregando más productos.
+                  Cuando encuentres algo que te encante, haz click en &ldquo;Agregar al Carrito&rdquo;. Puedes seguir navegando y agregando más productos.
                 </p>
               </div>
             </div>
@@ -52,7 +52,7 @@ export default function ComoComprarPage() {
                   Revisa tu Carrito
                 </h2>
                 <p className="font-body text-gray-700">
-                  Cuando estés listo, ve al carrito (ícono de bolsa en el navbar) para revisar tus productos seleccionados. Puedes eliminar productos si cambias de opinión.
+                  Cuando estés listo, ve al carrito para revisar tus productos seleccionados. Puedes eliminar productos si cambias de opinión.
                 </p>
               </div>
             </div>
@@ -67,7 +67,7 @@ export default function ComoComprarPage() {
                   Reserva tu Compra
                 </h2>
                 <p className="font-body text-gray-700">
-                  Haz click en "Reservar Compra". Los productos quedarán reservados por 30 minutos para que puedas coordinar el pago.
+                  Haz click en &ldquo;Reservar Compra&rdquo;. Los productos quedarán reservados por 30 minutos para que puedas coordinar el pago.
                 </p>
                 <div className="mt-3 p-3 bg-gray-100 border-2 border-black">
                   <p className="text-sm font-body text-black font-semibold">
@@ -108,7 +108,7 @@ export default function ComoComprarPage() {
               <li>✓ No hacemos cambios ni devoluciones</li>
               <li>✓ Entregas en zona sur</li>
               <li>✓ Envíos a todo el país</li>
-              <li>✓ Coordinas el pago directamente por WhatsApp</li>
+              <li>✓ Coordinas el pago directamente por Instagram o WhatsApp</li>
             </ul>
           </div>
         </div>
