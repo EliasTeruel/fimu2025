@@ -12,7 +12,7 @@ import Spinner from "./components/Spinner"
 import { getSessionId } from "@/lib/session"
 
 // 🔧 CONFIGURACIÓN: Cantidad de productos por página (scroll infinito)
-const PRODUCTOS_POR_PAGINA = 3 // Cambiá este número: 3, 5, 10, 20, etc.
+const PRODUCTOS_POR_PAGINA = 6 // Cambiá este número: 3, 5, 10, 20, etc.
 
 export default function Home() {
   const [productos, setProductos] = useState<Producto[]>([])

@@ -90,7 +90,7 @@ export default function ProductoCard({
           src={CloudinaryPresets.productCard(obtenerImagenPrincipal())}
           alt={producto.nombre}
           fill
-          className="object-cover"
+          className="object-contain"
           sizes="(max-width: 768px) 50vw, 25vw"
           priority={index < 4}
           loading={index < 4 ? undefined : 'lazy'}

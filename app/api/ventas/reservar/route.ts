@@ -5,7 +5,7 @@ import { calcularExpiracionReserva } from '@/lib/reserva-utils'
 // POST - Reservar productos al hacer click en "Pagar"
 export async function POST(request: Request) {
   try {
-    const { productosIds, compradorInfo, sessionId } = await request.json()
+    const { productosIds, compradorInfo, sessionId, usuarioId } = await request.json()
 
     if (!productosIds || !Array.isArray(productosIds) || productosIds.length === 0) {
       return NextResponse.json(
@@ -14,9 +14,9 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!sessionId) {
+    if (!sessionId && !usuarioId) {
       return NextResponse.json(
-        { error: 'sessionId es requerido' },
+        { error: 'sessionId o usuarioId es requerido' },
         { status: 400 }
       )
     }
@@ -63,14 +63,17 @@ export async function POST(request: Request) {
       ...productosReservadosExistentes.map(p => p.id)
     ])]
 
+    // 🔑 CLAVE: Guardar quién reservó (sessionId o usuarioId)
     await prisma.producto.updateMany({
       where: {
         id: { in: todosLosIds }
       },
       data: {
         estado: 'reservado',
-        reservadoEn: ahora, // Actualizar tiempo para todos
-        compradorInfo: compradorInfo || null
+        reservadoEn: ahora,
+        compradorInfo: compradorInfo || null,
+        reservadoPorSessionId: sessionId || null,      // 🔑 Guardar sessionId
+        reservadoPorUsuarioId: usuarioId ? parseInt(usuarioId) : null  // 🔑 Guardar usuarioId
       }
     })
 

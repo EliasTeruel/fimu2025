@@ -14,6 +14,10 @@ import { getSessionId } from '@/lib/session'
 import { CloudinaryPresets } from '@/lib/cloudinary-utils'
 import Navbar from '../components/Navbar'
 
+// ============================================================================
+// INTERFACES - Definición de tipos de datos
+// ============================================================================
+
 interface ProductoImagen {
   id: number
   url: string
@@ -28,34 +32,95 @@ interface Producto {
   stock: number
   imagenUrl?: string
   imagenes: ProductoImagen[]
-  estado?: string
-  reservadoEn?: Date | null
-  reservaPausada?: boolean
+  estado?: string                    // 'disponible' | 'reservado' | 'vendido'
+  reservadoEn?: Date | null          // Fecha/hora cuando se reservó
+  reservaPausada?: boolean           // Si el admin pausó la reserva
   pausadoEn?: Date | null
-  compradorInfo?: string | null
+  compradorInfo?: string | null      // "Nombre Apellido | Tel: XXX | red: @user"
+  reservadoPorSessionId?: string | null   // 🔑 Session ID de quien reservó
+  reservadoPorUsuarioId?: number | null   // 🔑 User ID de quien reservó
 }
 
+// 🔑 CLAVE: CarritoItem ahora incluye sessionId y usuarioId
+// Estos campos nos permiten saber quién es el DUEÑO de cada item en el carrito
 interface CarritoItem {
-  id: number
-  productoId: number
-  cantidad: number
-  producto: Producto
+  id: number                         // ID único del item en el carrito
+  productoId: number                 // ID del producto
+  cantidad: number                   // Cantidad (siempre 1)
+  sessionId?: string | null          // 🔑 Session ID del DUEÑO de este item
+  usuarioId?: number | null          // 🔑 User ID del DUEÑO de este item (si está logueado)
+  producto: Producto                 // Producto completo
 }
 
 export default function CarritoPage() {
   const supabase = createClient()
+  
+  // ============================================================================
+  // ESTADOS
+  // ============================================================================
   const [items, setItems] = useState<CarritoItem[]>([])
   const [cargando, setCargando] = useState(true)
   const [procesandoPago, setProcesandoPago] = useState(false)
   const [vaciandoCarrito, setVaciandoCarrito] = useState(false)
   const [eliminandoItem, setEliminandoItem] = useState<number | null>(null)
   const [tiemposRestantes, setTiemposRestantes] = useState<Record<number, string>>({})
+  
+  // 🔑 sessionId: Identificador único para usuarios invitados (no logueados)
   const [sessionId, setSessionId] = useState<string>('')
+  
   const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
   const [confirmConfig, setConfirmConfig] = useState<{ show: boolean; message: string; onConfirm: () => void; title?: string } | null>(null)
   const [mostrarContactoModal, setMostrarContactoModal] = useState(false)
+  
+  // Estados de usuario
   const [userLoggedIn, setUserLoggedIn] = useState(false)
   const [datosUsuario, setDatosUsuario] = useState<ContactoData | null>(null)
+  
+  // 🔑 miUsuarioId: ID del usuario logueado (null si es invitado)
+  // Este ID es fundamental para comparar ownership de productos
+  const [miUsuarioId, setMiUsuarioId] = useState<number | null>(null)
+
+  // ============================================================================
+  // FUNCIÓN CLAVE: esDeOtroUsuario
+  // ============================================================================
+  // Esta función determina si un CarritoItem pertenece a OTRO usuario
+  // Es el corazón de la lógica para diferenciar "mis productos" vs "productos de otros"
+  // ============================================================================
+  const esDeOtroUsuario = useCallback((item: CarritoItem): boolean => {
+    // Si el producto NO está reservado, entonces NO es de otro usuario
+    // (está disponible para todos)
+    if (item.producto.estado !== 'reservado') return false
+    
+    // -------- MÉTODO 1: Comparar por usuarioId (MÁS CONFIABLE) --------
+    // Comparar con el usuarioId que está en el PRODUCTO (quién lo reservó)
+    if (miUsuarioId && item.producto.reservadoPorUsuarioId) {
+      const esDiferente = item.producto.reservadoPorUsuarioId !== miUsuarioId
+      console.log(`🔍 Método 1 (usuarioId del PRODUCTO): producto.reservadoPorUsuarioId=${item.producto.reservadoPorUsuarioId}, miUsuarioId=${miUsuarioId}, esDeOtro=${esDiferente}`)
+      return esDiferente
+    }
+    
+    // -------- MÉTODO 2: Comparar por sessionId (PARA INVITADOS) --------
+    // Comparar con el sessionId que está en el PRODUCTO (quién lo reservó)
+    if (!miUsuarioId && sessionId && item.producto.reservadoPorSessionId) {
+      const esDiferente = item.producto.reservadoPorSessionId !== sessionId
+      console.log(`🔍 Método 2 (sessionId del PRODUCTO): producto.reservadoPorSessionId=${item.producto.reservadoPorSessionId}, miSessionId=${sessionId}, esDeOtro=${esDiferente}`)
+      return esDiferente
+    }
+    
+    // -------- MÉTODO 3: Fallback - Comparar por nombre en compradorInfo --------
+    // Si no tenemos los nuevos campos, usar el nombre del compradorInfo
+    if (datosUsuario) {
+      const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
+      const miNombreCompleto = `${datosUsuario.nombre} ${datosUsuario.apellido}`.trim()
+      const esDiferente = nombreEnCompradorInfo !== miNombreCompleto && nombreEnCompradorInfo !== ''
+      console.log(`🔍 Método 3 (nombre): compradorInfo="${nombreEnCompradorInfo}", miNombre="${miNombreCompleto}", esDeOtro=${esDiferente}`)
+      return esDiferente
+    }
+    
+    // Si no hay forma de verificar, asumir que NO es mío (mostrar como de otro)
+    console.log('🔍 Sin método de comparación - asumiendo que es de otro usuario')
+    return true
+  }, [miUsuarioId, sessionId, datosUsuario])
 
   // Inicializar sessionId
   useEffect(() => {
@@ -76,6 +141,7 @@ export default function CarritoPage() {
           const res = await fetch(`/api/usuarios?supabaseId=${user.id}`)
           if (res.ok) {
             const usuario = await res.json()
+            setMiUsuarioId(usuario.id) // Guardar el ID del usuario logueado
             setDatosUsuario({
               nombre: usuario.nombre || '',
               apellido: usuario.apellido || '',
@@ -112,6 +178,7 @@ export default function CarritoPage() {
       } else {
         setUserLoggedIn(false)
         setDatosUsuario(null)
+        setMiUsuarioId(null)
       }
     }
     
@@ -119,27 +186,33 @@ export default function CarritoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, sessionId])
 
-  // Calcular tiempo restante para productos reservados
+  // ============================================================================
+  // useEffect: Calcular tiempo restante de reservas
+  // ============================================================================
+  // Este efecto calcula y actualiza el cronómetro cada segundo
+  // SOLO para productos que YO reservé (no muestra cronómetro de otros usuarios)
+  // ============================================================================
   useEffect(() => {
     const calcularTiempos = () => {
       const nuevos: Record<number, string> = {}
+      
       items.forEach(item => {
+        // Solo procesar productos reservados con fecha de reserva
         if (item.producto.estado === 'reservado' && item.producto.reservadoEn) {
-          // Verificar si el producto fue reservado por MÍ o por OTRO cliente
-          const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
-          const miNombreCompleto = datosUsuario ? `${datosUsuario.nombre} ${datosUsuario.apellido}`.trim() : ''
           
-          const reservadoPorOtro = nombreEnCompradorInfo !== miNombreCompleto && miNombreCompleto !== ''
-          
-          // Solo calcular tiempo si LO RESERVÉ YO
-          if (reservadoPorOtro) {
+          // 🔑 CLAVE: Usar esDeOtroUsuario para filtrar
+          // Si el producto fue reservado por OTRO usuario, NO mostrar cronómetro
+          if (esDeOtroUsuario(item)) {
+            console.log(`⏭️ Saltando cronómetro de item ${item.id} - es de otro usuario`)
             return // No calcular cronómetro para productos reservados por otros
           }
           
-          // Si está pausado, mostrar mensaje especial y NO RECALCULAR
+          console.log(`⏱️ Calculando cronómetro para item ${item.id} - es MÍO`)
+          
+          // Si está pausado por admin, mostrar mensaje especial
           if (item.producto.reservaPausada) {
-            nuevos[item.id] = '⏸️ PAUSADO POR ADMIN' // item.id es único por CarritoItem
-            return // ⚠️ Importante: No calcular tiempo cuando está pausado
+            nuevos[item.id] = '⏸️ PAUSADO POR ADMIN'
+            return
           }
 
           const reserva = new Date(item.producto.reservadoEn)
@@ -174,7 +247,7 @@ export default function CarritoPage() {
     calcularTiempos()
     const interval = setInterval(calcularTiempos, 1000)
     return () => clearInterval(interval)
-  }, [items, datosUsuario]) // Agregar datosUsuario a las dependencias
+  }, [items, esDeOtroUsuario]) // Agregar esDeOtroUsuario a las dependencias
 
   const cargarCarrito = useCallback(async () => {
     if (!sessionId) {
@@ -371,14 +444,8 @@ export default function CarritoPage() {
     // Suma simple de precios - 1 unidad por producto
     // Excluir productos reservados por OTROS clientes
     return items.reduce((total, item) => {
-      const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
-      const miNombreCompleto = datosUsuario ? `${datosUsuario.nombre} ${datosUsuario.apellido}`.trim() : ''
-      const reservadoPorOtro = item.producto.estado === 'reservado' && 
-        nombreEnCompradorInfo !== miNombreCompleto &&
-        miNombreCompleto !== ''
-      
       // No sumar productos reservados por otros
-      if (reservadoPorOtro) return total
+      if (esDeOtroUsuario(item)) return total
       
       return total + item.producto.precio
     }, 0)
@@ -401,18 +468,13 @@ export default function CarritoPage() {
     setProcesandoPago(true)
 
     try {
-      // Nombre completo del usuario actual para comparar
-      const miNombreCompleto = `${contactoData.nombre} ${contactoData.apellido}`.trim()
-      
       // Separar productos: nuevos (disponibles) vs ya reservados POR MÍ
       const productosNuevos = items.filter(item => item.producto.estado === 'disponible')
       
       const productosYaReservados = items.filter(item => {
         if (item.producto.estado !== 'reservado') return false
-        
-        // Solo contar como "ya reservado" si LO RESERVÉ YO
-        const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
-        return nombreEnCompradorInfo === miNombreCompleto
+        // Solo contar como "ya reservado" si LO RESERVÉ YO (no es de otro usuario)
+        return !esDeOtroUsuario(item)
       })
       
       // Solo reservar si hay productos nuevos
@@ -427,7 +489,8 @@ export default function CarritoPage() {
           body: JSON.stringify({
             productosIds: productosNuevosIds,
             compradorInfo,
-            sessionId
+            sessionId,
+            usuarioId: miUsuarioId  // 🔑 Enviar usuarioId si está logueado
           })
         })
 
@@ -560,29 +623,34 @@ export default function CarritoPage() {
           </div>
         ) : (
           <>
-            {/* Lista de Items */}
+            {/* ============================================================ */}
+            {/* RENDERIZADO DE ITEMS DEL CARRITO */}
+            {/* ============================================================ */}
             <div className="space-y-4 mb-6">
               {items.map((item) => {
-                // Verificar si el producto está reservado por OTRO cliente
-                // El compradorInfo tiene formato: "Nombre Apellido | Tel: XXX | red: YYY"
-                // Extraer solo el nombre del compradorInfo para comparar
-                const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
-                const miNombreCompleto = datosUsuario ? `${datosUsuario.nombre} ${datosUsuario.apellido}`.trim() : ''
+                // 🔑 CLAVE: Determinar si este item pertenece a OTRO usuario
+                const reservadoPorOtro = esDeOtroUsuario(item)
                 
-                const reservadoPorOtro = item.producto.estado === 'reservado' && 
-                  nombreEnCompradorInfo !== miNombreCompleto &&
-                  miNombreCompleto !== '' // Solo verificar si tenemos datos del usuario
+                console.log(`🎨 Renderizando item ${item.id}:`, {
+                  productoId: item.producto.id,
+                  nombre: item.producto.nombre,
+                  estado: item.producto.estado,
+                  itemSessionId: item.sessionId,
+                  itemUsuarioId: item.usuarioId,
+                  reservadoPorOtro
+                })
                 
                 return (
                 <div
                   key={item.id}
                   className="bg-white p-4 border-2"
                   style={{ 
+                    // Borde ROJO si es de otro, GRIS si es mío y reservado, NEGRO si disponible
                     borderColor: reservadoPorOtro ? '#DC2626' : item.producto.estado === 'reservado' ? '#666666' : '#000000',
                     backgroundColor: reservadoPorOtro ? '#FEE2E2' : item.producto.estado === 'reservado' ? '#F5F5F5' : '#fff'
                   }}
                 >
-                  {/* Producto Reservado por OTRO cliente */}
+                  {/* -------- CARTEL ROJO: Producto reservado por OTRO -------- */}
                   {reservadoPorOtro && (
                     <div className="mb-3 p-4 border-2 border-red-600 bg-red-50">
                       <p className="font-bold text-xl mb-2 font-title uppercase text-red-600">
@@ -597,17 +665,21 @@ export default function CarritoPage() {
                     </div>
                   )}
                   
-                  {/* Badge de Estado Reservado - Solo si LO RESERVÉ YO */}
+                  {/* -------- CRONÓMETRO Y INFO DE PAGO: Solo si LO RESERVÉ YO -------- */}
+                  {/* 🔑 Condición: producto reservado Y NO es de otro usuario */}
                   {item.producto.estado === 'reservado' && !reservadoPorOtro && (
                     <div className="mb-3 p-4 border-2 border-black bg-gray-100">
                       <p className="font-bold text-xl mb-2 font-title uppercase text-black">
                         Producto Reservado
                       </p>
+                      
+                      {/* Mostrar cronómetro (calculado en useEffect) */}
                       {tiemposRestantes[item.id] && (
                         <p className="font-semibold text-lg mb-2 font-body text-gray-700">
                           {tiemposRestantes[item.id]}
                         </p>
                       )}
+                      
                       <p className="text-sm mb-1 font-body text-gray-600">
                         Tu producto está reservado y esperando confirmación del pago.
                       </p>
@@ -688,10 +760,8 @@ export default function CarritoPage() {
                 const productosDisponibles = items.filter(item => item.producto.estado === 'disponible')
                 const productosReservados = items.filter(item => {
                   if (item.producto.estado !== 'reservado') return false
-                  const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
-                  const miNombreCompleto = datosUsuario ? `${datosUsuario.nombre} ${datosUsuario.apellido}`.trim() : ''
-                  // Solo contar como reservados si son MIS reservas (y tengo datos de usuario)
-                  return nombreEnCompradorInfo === miNombreCompleto && miNombreCompleto !== ''
+                  // Solo contar como reservados si son MIS reservas (no es de otro usuario)
+                  return !esDeOtroUsuario(item)
                 })
                 const hayDisponibles = productosDisponibles.length > 0
                 const hayReservados = productosReservados.length > 0

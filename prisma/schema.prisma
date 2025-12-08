@@ -12,26 +12,34 @@ datasource db {
 }
 
 model Producto {
-  id          Int              @id @default(autoincrement())
-  nombre      String
-  descripcion String?
-  precio      Float
-  stock       Int              @default(0)
-  imagenUrl   String?          // Mantener por compatibilidad
-  imagenes    ProductoImagen[]
-  carrito     CarritoItem[]
-  categoria   String           @default("fimu") // fimu, perchero, etc.
-  estado      String           @default("disponible") // disponible, reservado, vendido
-  reservadoEn DateTime?        @map("reservado_en") // Timestamp cuando se dio click en Pagar
-  compradorInfo String?        @map("comprador_info") // Info del comprador (nombre, contacto, etc)
-  reservaPausada Boolean        @default(false) @map("reserva_pausada") // Admin puede pausar el cronómetro
-  pausadoEn   DateTime?        @map("pausado_en") // Timestamp cuando se pausó
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id                      Int              @id @default(autoincrement())
+  nombre                  String
+  descripcion             String?
+  precio                  Float
+  stock                   Int              @default(0)
+  imagenUrl               String?          // Mantener por compatibilidad
+  imagenes                ProductoImagen[]
+  carrito                 CarritoItem[]
+  categoria               String           @default("fimu") // fimu, perchero, etc.
+  estado                  String           @default("disponible") // disponible, reservado, vendido
+  reservadoEn             DateTime?        @map("reservado_en") // Timestamp cuando se dio click en Pagar
+  compradorInfo           String?          @map("comprador_info") // Info del comprador (nombre, contacto, etc)
+  reservaPausada          Boolean          @default(false) @map("reserva_pausada") // Admin puede pausar el cronómetro
+  pausadoEn               DateTime?        @map("pausado_en") // Timestamp cuando se pausó
+  
+  // 🔑 NUEVOS CAMPOS: Para identificar quién reservó el producto
+  reservadoPorSessionId   String?          @map("reservado_por_session_id") // Session ID de quien reservó
+  reservadoPorUsuarioId   Int?             @map("reservado_por_usuario_id") // User ID de quien reservó
+  reservadoPor            Usuario?         @relation("ProductoReservadoPor", fields: [reservadoPorUsuarioId], references: [id], onDelete: SetNull)
+  
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
 
   @@index([estado]) // Índice para filtrar por estado
   @@index([createdAt]) // Índice para ordenar por fecha
   @@index([categoria]) // Índice para filtrar por categoría
+  @@index([reservadoPorSessionId]) // Índice para búsquedas por sessionId
+  @@index([reservadoPorUsuarioId]) // Índice para búsquedas por usuarioId
   @@map("productos")
 }
 
@@ -71,18 +79,19 @@ model CarritoItem {
 }
 
 model Usuario {
-  id                Int            @id @default(autoincrement())
-  email             String         @unique
-  supabaseId        String?        @unique @map("supabase_id") // UUID de Supabase Auth
-  nombre            String?
-  apellido          String?
-  redSocial         String?        @map("red_social") // 'facebook', 'instagram', 'tiktok', 'otro'
-  nombreRedSocial   String?        @map("nombre_red_social") // El @ o nombre de usuario
-  whatsapp          String?
-  isAdmin           Boolean        @default(false) @map("is_admin")
-  carritoItems      CarritoItem[]  // Relación con items del carrito
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
+  id                  Int            @id @default(autoincrement())
+  email               String         @unique
+  supabaseId          String?        @unique @map("supabase_id") // UUID de Supabase Auth
+  nombre              String?
+  apellido            String?
+  redSocial           String?        @map("red_social") // 'facebook', 'instagram', 'tiktok', 'otro'
+  nombreRedSocial     String?        @map("nombre_red_social") // El @ o nombre de usuario
+  whatsapp            String?
+  isAdmin             Boolean        @default(false) @map("is_admin")
+  carritoItems        CarritoItem[]  // Relación con items del carrito
+  productosReservados Producto[]     @relation("ProductoReservadoPor") // Productos que este usuario reservó
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
 
   @@index([email])
   @@index([supabaseId])

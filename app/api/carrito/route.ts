@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server'
 import {prisma} from '@/lib/prisma'
 
-// GET - Obtener todos los items del carrito por sessionId o usuarioId
+// ============================================================================
+// GET - Obtener todos los items del carrito
+// ============================================================================
+// IMPORTANTE: Este endpoint devuelve los items del carrito CON sessionId y usuarioId
+// para que el frontend pueda comparar y determinar qué productos pertenecen a cada usuario
+// ============================================================================
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const sessionId = searchParams.get('sessionId')
-    const usuarioId = searchParams.get('usuarioId')
+    const sessionId = searchParams.get('sessionId') // ID de sesión para invitados
+    const usuarioId = searchParams.get('usuarioId') // ID de usuario logueado
 
-    console.log('📥 GET /api/carrito - Params:', { sessionId, usuarioId }) // Debug
+    console.log('📥 GET /api/carrito - Params:', { sessionId, usuarioId })
 
+    // Validar que al menos uno esté presente
     if (!sessionId && !usuarioId) {
       return NextResponse.json(
         { error: 'sessionId o usuarioId es requerido' },
@@ -17,17 +23,26 @@ export async function GET(request: Request) {
       )
     }
 
-    // Priorizar usuarioId si está presente (usuario logueado)
+    // Priorizar usuarioId si está presente (usuario logueado tiene prioridad)
+    // Si es invitado, buscar por sessionId Y que usuarioId sea null
     const whereClause = usuarioId 
       ? { usuarioId: parseInt(usuarioId) }
-      : { sessionId, usuarioId: null } // Solo items sin usuario asignado
+      : { sessionId, usuarioId: null }
 
-    console.log('🔍 Buscando items con:', whereClause) // Debug
+    console.log('🔍 Buscando items con:', whereClause)
 
+    // CLAVE: Usar select en lugar de include para poder obtener sessionId y usuarioId del CarritoItem
+    // Estos campos son FUNDAMENTALES para comparar ownership en el frontend
     const items = await prisma.carritoItem.findMany({
       where: whereClause,
-      include: {
-        producto: {
+      select: {
+        id: true,                    // ID único del item en el carrito
+        productoId: true,            // ID del producto
+        cantidad: true,              // Cantidad (siempre 1 en este caso)
+        sessionId: true,             // 🔑 SESSION ID del dueño de este item
+        usuarioId: true,             // 🔑 USER ID del dueño de este item
+        createdAt: true,             // Fecha de creación
+        producto: {                  // Producto completo con todas sus propiedades
           include: {
             imagenes: {
               orderBy: {
@@ -42,8 +57,9 @@ export async function GET(request: Request) {
       }
     })
 
-    console.log(`✅ Encontrados ${items.length} items`) // Debug
+    console.log(`✅ Encontrados ${items.length} items`)
 
+    // Cada item ahora incluye: id, productoId, cantidad, sessionId, usuarioId, producto
     return NextResponse.json(items)
   } catch (error) {
     console.error('Error al obtener carrito:', error)

@@ -10,6 +10,8 @@ export async function GET(request: Request) {
     const categoria = searchParams.get('categoria') || 'fimu' // Default: fimu
     const skip = (page - 1) * limit
 
+    console.log('🔍 [GET /api/productos/publico] Params:', { page, limit, categoria, skip })
+
     // Filtro base por categoría
     const whereClause = {
       categoria: categoria
@@ -39,8 +41,8 @@ export async function GET(request: Request) {
           },
           createdAt: true
         },
-        take: limit * 3, // Traer más para poder ordenar correctamente
-        skip: 0
+        // Traer TODOS los productos de esta categoría para ordenar correctamente
+        orderBy: { createdAt: 'desc' }
       }),
       prisma.producto.count({ where: whereClause })
     ])
@@ -58,6 +60,10 @@ export async function GET(request: Request) {
       })
       .slice(skip, skip + limit)
       .map(({ createdAt, ...producto }) => producto) // Remover createdAt del resultado
+    
+    console.log('📊 [GET /api/productos/publico] Total encontrados:', productosRaw.length)
+    console.log('📦 [GET /api/productos/publico] Productos paginados:', productos.length)
+    console.log('🔢 [GET /api/productos/publico] IDs devueltos:', productos.map(p => p.id))
     
     return NextResponse.json({
       productos: productos, // Devolver TODOS los productos (no filtrar)

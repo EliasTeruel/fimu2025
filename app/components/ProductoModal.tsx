@@ -428,7 +428,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
           {/* Descripción */}
           {producto.descripcion && (
             <div>
-              <p className="font-body text-gray-700">{producto.descripcion}</p>
+              <p className="font-body text-gray-700 whitespace-pre-line">{producto.descripcion}</p>
             </div>
           )}
           {/* Precio */}

@@ -10,6 +10,7 @@ import Confirm from '../components/Confirm'
 import Navbar from '../components/Navbar'
 import LoadingScreen from '../components/LoadingScreen'
 import Spinner from '../components/Spinner'
+import ImageEditor from '../components/ImageEditor'
 
 interface ProductoImagen {
   id?: number
@@ -50,6 +51,11 @@ export default function AdminPage() {
   const [imagenUrl, setImagenUrl] = useState('')
   const [imagenes, setImagenes] = useState<ProductoImagen[]>([])
   const [categoria, setCategoria] = useState('fimu')
+  
+  // Estado para el editor de imágenes
+  const [imageToEdit, setImageToEdit] = useState<string | null>(null)
+  const [isUploadingEdited, setIsUploadingEdited] = useState(false)
+  const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null)
   
   // Configuración de categorías
   const [categoriasConfig, setCategoriasConfig] = useState<Array<{
@@ -213,6 +219,88 @@ export default function AdminPage() {
       console.log('Nueva imagen:', nuevaImagen)
       return nuevasImagenes
     })
+  }
+
+  // Función para agregar imagen directamente (sin editor)
+  const handleImageSelect = (result: { info?: unknown }) => {
+    if (result?.info && typeof result.info === 'object' && 'secure_url' in result.info && typeof result.info.secure_url === 'string') {
+      console.log('Imagen subida:', result.info.secure_url)
+      agregarImagen(result.info.secure_url)
+    }
+  }
+
+  // Función para subir la imagen editada a Cloudinary
+  const uploadEditedImage = async (blob: Blob) => {
+    setIsUploadingEdited(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', blob)
+      formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || '')
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Error al subir la imagen')
+      }
+
+      const data = await response.json()
+      console.log('Imagen editada subida:', data.secure_url)
+      
+      // Si estamos editando una imagen existente, reemplazarla
+      if (editingImageIndex !== null) {
+        setImagenes(prev => prev.map((img, idx) => 
+          idx === editingImageIndex 
+            ? { ...img, url: data.secure_url }
+            : img
+        ))
+        setAlertConfig({
+          show: true,
+          title: '✅ Imagen actualizada',
+          message: 'La imagen se editó y actualizó correctamente',
+          type: 'success'
+        })
+      } else {
+        // Si es nueva, agregarla
+        agregarImagen(data.secure_url)
+        setAlertConfig({
+          show: true,
+          title: '✅ Imagen agregada',
+          message: 'La imagen se editó y agregó correctamente',
+          type: 'success'
+        })
+      }
+      
+      setImageToEdit(null)
+      setEditingImageIndex(null)
+    } catch (error) {
+      console.error('Error al subir imagen editada:', error)
+      setAlertConfig({
+        show: true,
+        title: '❌ Error',
+        message: 'No se pudo subir la imagen editada',
+        type: 'error'
+      })
+    } finally {
+      setIsUploadingEdited(false)
+    }
+  }
+
+  // Función para cancelar la edición
+  const handleCancelEdit = () => {
+    setImageToEdit(null)
+    setEditingImageIndex(null)
+  }
+
+  // Función para editar una imagen existente
+  const editarImagenExistente = (index: number) => {
+    setImageToEdit(imagenes[index].url)
+    setEditingImageIndex(index)
   }
 
 
@@ -565,6 +653,13 @@ export default function AdminPage() {
                           )}
                           <button
                             type="button"
+                            onClick={() => editarImagenExistente(index)}
+                            className="w-full py-1 text-xs hover:bg-blue-100 transition-colors border-2 border-blue-600 bg-white text-blue-600 font-body uppercase tracking-wide"
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => eliminarImagen(index)}
                             className="w-full py-1 text-xs hover:bg-gray-200 transition-colors border-2 border-black bg-white text-black font-body uppercase tracking-wide"
                           >
@@ -583,26 +678,59 @@ export default function AdminPage() {
                     multiple: true,
                     maxFiles: 10,
                     sources: ['local', 'url', 'camera'],
-                  }}
-                  onSuccess={(result: { info?: unknown }) => {
-                    if (result?.info && typeof result.info === 'object' && 'secure_url' in result.info && typeof result.info.secure_url === 'string') {
-                      console.log('Imagen subida:', result.info.secure_url)
-                      agregarImagen(result.info.secure_url)
+                    showAdvancedOptions: false,
+                    cropping: false,
+                    maxImageFileSize: 10000000,
+                    maxImageWidth: 2000,
+                    maxImageHeight: 2000,
+                    clientAllowedFormats: ['jpg', 'jpeg', 'png', 'webp'],
+                    styles: {
+                      palette: {
+                        window: "#FFFFFF",
+                        windowBorder: "#000000",
+                        tabIcon: "#000000",
+                        menuIcons: "#5E18EB",
+                        textDark: "#000000",
+                        textLight: "#FFFFFF",
+                        link: "#5E18EB",
+                        action: "#000000",
+                        inactiveTabIcon: "#999999",
+                        error: "#FF0000",
+                        inProgress: "#5E18EB",
+                        complete: "#00CC00",
+                        sourceBg: "#FFFFFF"
+                      },
+                      fonts: {
+                        default: null,
+                        "'Poppins', sans-serif": {
+                          url: null,
+                          active: true
+                        }
+                      }
+                    },
+                    text: {
+                      'local.dd_title_single': 'Galería',
+                      'local.dd_title_multi': 'Galería',
+                      'camera.capture': 'Tomar Foto',
+                      'camera.title': 'Cámara',
+                      'url.inner_title': 'URL Pública',
                     }
                   }}
+                  onSuccess={handleImageSelect}
                 >
                   {({ open }: { open: () => void }) => (
                     <button
                       type="button"
                       onClick={() => open()}
-                      className="w-full py-3 hover:bg-gray-100 transition-colors text-black font-medium text-lg border-2 border-black font-body uppercase tracking-wide bg-white"
+                      className="w-full py-3 hover:bg-gray-100 transition-colors text-black font-medium text-base sm:text-lg border-2 border-black font-body uppercase tracking-wide bg-white"
+                      disabled={isUploadingEdited}
                     >
-                      📸 Agregar Imagen(es) ({imagenes.length}/10)
+                      📸 Agregar Imágenes ({imagenes.length}/10)
                     </button>
                   )}
                 </CldUploadWidget>
                 <p className="text-xs mt-2 text-gray-600 font-body">
-                  💡 Puedes seleccionar múltiples imágenes a la vez. La primera se marca como principal automáticamente.
+                  💡 Puedes seleccionar hasta 10 imágenes a la vez. Usa el botón ✏️ Editar para ajustar cada imagen después de subirla.
                 </p>
               </div>
 
@@ -771,6 +899,15 @@ export default function AdminPage() {
           message={confirmConfig.message}
           onConfirm={confirmConfig.onConfirm}
           onCancel={() => setConfirmConfig(null)}
+        />
+      )}
+
+      {/* Editor de imágenes */}
+      {imageToEdit && (
+        <ImageEditor
+          imageUrl={imageToEdit}
+          onSave={uploadEditedImage}
+          onCancel={handleCancelEdit}
         />
       )}
       </div>
