@@ -1,3 +1,4 @@
+import { identity, accessResponse } from '@/lib/api-identity'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -7,7 +8,8 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const userId = parseInt(id)
+    const actor = await identity({ usuarioId: id }, true)
+    const userId = actor.usuarioId!
     
     if (isNaN(userId)) {
       return NextResponse.json(
@@ -53,6 +55,8 @@ export async function PUT(
 
     return NextResponse.json(usuarioActualizado)
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('❌ Error al actualizar usuario:', error)
     return NextResponse.json(
       { error: 'Error al actualizar usuario', details: error instanceof Error ? error.message : 'Unknown error' },
@@ -67,7 +71,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const userId = parseInt(id)
+    const actor = await identity({ usuarioId: id }, true)
+    const userId = actor.usuarioId!
     
     if (isNaN(userId)) {
       return NextResponse.json(
@@ -95,6 +100,8 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Usuario eliminado correctamente' })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('❌ Error al eliminar usuario:', error)
     return NextResponse.json(
       { error: 'Error al eliminar usuario', details: error instanceof Error ? error.message : 'Unknown error' },

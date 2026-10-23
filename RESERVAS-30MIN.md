@@ -1,3 +1,5 @@
+> Documento histórico. La implementación vigente de horarios configurables se describe en [docs/CONFIGURACION-RESERVAS-OPERACION.md](docs/CONFIGURACION-RESERVAS-OPERACION.md). Sus plazos fijos anteriores no describen la versión nueva.
+
 # Actualización Sistema de Reservas - 30 Minutos
 
 ## Cambios Implementados

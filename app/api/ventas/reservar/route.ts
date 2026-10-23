@@ -1,99 +1,63 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calcularExpiracionReserva } from '@/lib/reserva-utils'
+import { addEffectiveTime, readPolicy, reservationTiming } from '@/lib/reserva-policy'
+import { currentPolicy, assertLive, reservationGuard, reservationError, expired } from '@/lib/reserva-service'
+import { identity, cartOwner, reservationOwner, ownsReservation, AccessError, accessResponse } from '@/lib/api-identity'
 
-// POST - Reservar productos al hacer click en "Pagar"
 export async function POST(request: Request) {
   try {
     const { productosIds, compradorInfo, sessionId, usuarioId } = await request.json()
-
-    if (!productosIds || !Array.isArray(productosIds) || productosIds.length === 0) {
-      return NextResponse.json(
-        { error: 'Se requiere un array de IDs de productos' },
-        { status: 400 }
-      )
-    }
-
-    if (!sessionId && !usuarioId) {
-      return NextResponse.json(
-        { error: 'sessionId o usuarioId es requerido' },
-        { status: 400 }
-      )
-    }
-
-    // Verificar que los productos estén disponibles O ya estén reservados por este mismo cliente
-    const productos = await prisma.producto.findMany({
-      where: {
-        id: { in: productosIds }
+    const actor = await identity({ sessionId, usuarioId })
+    if (!Array.isArray(productosIds) || !productosIds.length || productosIds.length > 200 ||
+        productosIds.some(id => !Number.isSafeInteger(id) || id <= 0) ||
+        (compradorInfo != null && (typeof compradorInfo !== 'string' || compradorInfo.length > 2000)))
+      throw new AccessError(400, 'Datos de reserva inválidos')
+    const ids: number[] = [...new Set<number>(productosIds)]
+    const owner = reservationOwner(actor)
+    const result = await prisma.$transaction(async tx => {
+      const now = new Date()
+      const items = await tx.carritoItem.findMany({ where: { ...cartOwner(actor), productoId: { in: ids } }, select: { productoId: true } })
+      if (new Set(items.map(item => item.productoId)).size !== ids.length)
+        throw new AccessError(403, 'Solo puedes reservar productos de tu carrito')
+      const products = await tx.producto.findMany({ where: { id: { in: ids } } })
+      if (products.length !== ids.length) throw new AccessError(404, 'Producto no encontrado')
+      for (const p of products) {
+        if (p.estado !== 'disponible') {
+          if (!ownsReservation(actor, p)) throw new AccessError(409, 'Algunos productos ya no están disponibles')
+          assertLive(p, now)
+        }
       }
-    })
-
-    const noDisponibles = productos.filter((p: typeof productos[0]) => {
-      // Permitir si está disponible o si ya está reservado por este cliente
-      const esDisponible = p.estado === 'disponible'
-      const esReservadoPorEsteCliente = p.estado === 'reservado' && p.compradorInfo === compradorInfo
-      return !esDisponible && !esReservadoPorEsteCliente
-    })
-    
-    if (noDisponibles.length > 0) {
-      return NextResponse.json(
-        { 
-          error: 'Algunos productos ya no están disponibles',
-          productosNoDisponibles: noDisponibles.map((p: typeof productos[0]) => ({ id: p.id, nombre: p.nombre, estado: p.estado }))
-        },
-        { status: 400 }
-      )
-    }
-
-    // Buscar si ya hay productos reservados por este cliente
-    const productosReservadosExistentes = await prisma.producto.findMany({
-      where: {
-        estado: 'reservado',
-        compradorInfo: compradorInfo
+      const existing = await tx.producto.findMany({ where: { estado: 'reservado', ...owner } })
+      const all = new Map(products.map(p => [p.id, p]))
+      for (const p of existing) {
+        // Adding a product never revives expired reservations or changes legacy/manual pauses.
+        if (readPolicy(p.reservaPolitica) && !expired(p, now) && !p.reservaPausada) all.set(p.id, p)
       }
-    })
-
-    // Definir el nuevo tiempo de reserva usando lógica inteligente
-    const ahora = new Date()
-    const tiempoExpiracion = calcularExpiracionReserva(ahora) // Expira según horario de atención
-
-    // Reservar/actualizar todos los productos (nuevos y existentes del mismo cliente)
-    const todosLosIds = [...new Set([
-      ...productosIds,
-      ...productosReservadosExistentes.map(p => p.id)
-    ])]
-
-    // 🔑 CLAVE: Guardar quién reservó (sessionId o usuarioId)
-    await prisma.producto.updateMany({
-      where: {
-        id: { in: todosLosIds }
-      },
-      data: {
-        estado: 'reservado',
-        reservadoEn: ahora,
-        compradorInfo: compradorInfo || null,
-        reservadoPorSessionId: sessionId || null,      // 🔑 Guardar sessionId
-        reservadoPorUsuarioId: usuarioId ? parseInt(usuarioId) : null  // 🔑 Guardar usuarioId
+      const current = await currentPolicy(tx)
+      const reservas = []
+      let extended = 0, created = 0
+      for (const p of all.values()) {
+        if (p.estado === 'reservado' && p.reservaPausada) {
+          reservas.push({ productoId: p.id, reservaTiempo: reservationTiming(p, now.getTime()) })
+          continue
+        }
+        const policy = p.estado === 'reservado' ? readPolicy(p.reservaPolitica)! : current
+        const data = {
+          estado: 'reservado', reservadoEn: now, compradorInfo: compradorInfo || p.compradorInfo || null,
+          ...owner, reservadoPorSessionId: actor.usuarioId ? null : actor.sessionId,
+          reservaPolitica: { ...policy }, reservaPausada: false, pausadoEn: null, reservaSaldoMs: null,
+          reservaExpiraEn: new Date(addEffectiveTime(now.getTime(), policy.duracionMinutos * 60000, policy)),
+          reservaVersion: { increment: 1 },
+        }
+        const updated = await tx.producto.updateMany({ where: reservationGuard(p), data })
+        if (updated.count !== 1) throw new AccessError(409, 'La disponibilidad cambió; vuelve a intentar')
+        if (p.estado === 'reservado') extended++; else created++
+        reservas.push({ productoId: p.id, reservaTiempo: reservationTiming({ ...p, ...data }, now.getTime()) })
       }
-    })
-
-    const mensajeExtra = productosReservadosExistentes.length > 0 
-      ? ` Se extendió la reserva de ${productosReservadosExistentes.length} producto(s) existente(s).`
-      : ''
-
-    return NextResponse.json({ 
-      message: `Productos reservados exitosamente.${mensajeExtra}`,
-      reservadoEn: ahora,
-      expiresAt: tiempoExpiracion,
-      productosReservados: todosLosIds.length,
-      productosNuevos: productosIds.length,
-      productosExtendidos: productosReservadosExistentes.length
-    })
+      return { productosReservados: reservas.length, productosNuevos: created, productosExtendidos: extended, reservas, serverNow: now.toISOString() }
+    }, { isolationLevel: 'Serializable' })
+    return NextResponse.json({ message: 'Productos reservados exitosamente', ...result })
   } catch (error) {
-    console.error('Error al reservar productos:', error)
-    return NextResponse.json(
-      { error: 'Error al reservar los productos' },
-      { status: 500 }
-    )
+    return accessResponse(reservationError(error)) ?? NextResponse.json({ error: 'Error al reservar los productos' }, { status: 500 })
   }
 }

@@ -1,38 +1,15 @@
+import { identity, cartOwner, queryClaims, accessResponse, ownsReservation, publicProduct, AccessError } from '@/lib/api-identity'
 import { NextResponse } from 'next/server'
 import {prisma} from '@/lib/prisma'
 
-// ============================================================================
-// GET - Obtener todos los items del carrito
-// ============================================================================
-// IMPORTANTE: Este endpoint devuelve los items del carrito CON sessionId y usuarioId
-// para que el frontend pueda comparar y determinar qué productos pertenecen a cada usuario
-// ============================================================================
+// GET - Obtener únicamente el carrito del propietario verificado.
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const sessionId = searchParams.get('sessionId') // ID de sesión para invitados
-    const usuarioId = searchParams.get('usuarioId') // ID de usuario logueado
+    const allCarts = new URL(request.url).searchParams.get('scope') === 'all'
+    const actor = await identity(queryClaims(request))
+    if (allCarts && !actor.isAdmin) throw new AccessError(403, 'Se requiere permiso de administrador')
+    const whereClause = allCarts ? {} : cartOwner(actor)
 
-    console.log('📥 GET /api/carrito - Params:', { sessionId, usuarioId })
-
-    // Validar que al menos uno esté presente
-    if (!sessionId && !usuarioId) {
-      return NextResponse.json(
-        { error: 'sessionId o usuarioId es requerido' },
-        { status: 400 }
-      )
-    }
-
-    // Priorizar usuarioId si está presente (usuario logueado tiene prioridad)
-    // Si es invitado, buscar por sessionId Y que usuarioId sea null
-    const whereClause = usuarioId 
-      ? { usuarioId: parseInt(usuarioId) }
-      : { sessionId, usuarioId: null }
-
-    console.log('🔍 Buscando items con:', whereClause)
-
-    // CLAVE: Usar select en lugar de include para poder obtener sessionId y usuarioId del CarritoItem
-    // Estos campos son FUNDAMENTALES para comparar ownership en el frontend
     const items = await prisma.carritoItem.findMany({
       where: whereClause,
       select: {
@@ -59,9 +36,14 @@ export async function GET(request: Request) {
 
     console.log(`✅ Encontrados ${items.length} items`)
 
-    // Cada item ahora incluye: id, productoId, cantidad, sessionId, usuarioId, producto
-    return NextResponse.json(items)
+    const safeItems = items.map(item => ({
+      ...item,
+      producto: { ...publicProduct(item.producto), reservadoPorMi: ownsReservation(actor, item.producto) },
+    }))
+    return NextResponse.json(safeItems, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('Error al obtener carrito:', error)
     return NextResponse.json(
       { error: 'Error al obtener el carrito' },
@@ -75,25 +57,9 @@ export async function POST(request: Request) {
   try {
     const { productoId, cantidad, sessionId, usuarioId } = await request.json()
 
-    console.log('📥 POST /api/carrito recibido:', { productoId, cantidad, sessionId, usuarioId }) // Debug
-
-    if (!productoId || !cantidad) {
-      return NextResponse.json(
-        { error: 'Producto ID y cantidad son requeridos' },
-        { status: 400 }
-      )
-    }
-
-    // Validar que al menos uno de los dos esté presente y no sea vacío
-    const hasSessionId = sessionId && sessionId.trim() !== ''
-    const hasUsuarioId = usuarioId && usuarioId > 0
-
-    if (!hasSessionId && !hasUsuarioId) {
-      console.error('❌ Validación falló: sessionId y usuarioId vacíos')
-      return NextResponse.json(
-        { error: 'sessionId o usuarioId es requerido', debug: { sessionId, usuarioId } },
-        { status: 400 }
-      )
+    const actor = await identity({ sessionId, usuarioId })
+    if (!Number.isSafeInteger(productoId) || productoId <= 0 || !Number.isSafeInteger(cantidad) || cantidad < 1) {
+      return NextResponse.json({ error: 'Producto y cantidad inválidos' }, { status: 400 })
     }
 
     // Verificar si el producto existe y tiene stock
@@ -127,9 +93,7 @@ export async function POST(request: Request) {
     // La validación de disponibilidad se hace al momento de RESERVAR
     
     // Verificar si el producto ya está en el carrito (por usuario o por sesión)
-    const whereClause = usuarioId
-      ? { productoId, usuarioId: parseInt(usuarioId) }
-      : { productoId, sessionId, usuarioId: null }
+    const whereClause = { productoId, ...cartOwner(actor) }
 
     const itemExistente = await prisma.carritoItem.findFirst({
       where: whereClause
@@ -144,14 +108,9 @@ export async function POST(request: Request) {
     }
 
     // Crear nuevo item
-    const createData: any = {
-      productoId,
-      cantidad,
-      sessionId
-    }
-    
-    if (usuarioId) {
-      createData.usuarioId = parseInt(usuarioId)
+    const createData = {
+      productoId, cantidad, ...cartOwner(actor),
+      sessionId: actor.usuarioId ? null : actor.sessionId,
     }
 
     const item = await prisma.carritoItem.create({
@@ -167,8 +126,10 @@ export async function POST(request: Request) {
       }
     })
 
-    return NextResponse.json(item, { status: 201 })
+    return NextResponse.json({ ...item, producto: publicProduct(item.producto) }, { status: 201 })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('Error al agregar al carrito:', error)
     return NextResponse.json(
       { error: 'Error al agregar producto al carrito' },
@@ -180,26 +141,16 @@ export async function POST(request: Request) {
 // DELETE - Vaciar carrito por sessionId o usuarioId
 export async function DELETE(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const sessionId = searchParams.get('sessionId')
-    const usuarioId = searchParams.get('usuarioId')
-
-    if (!sessionId && !usuarioId) {
-      return NextResponse.json(
-        { error: 'sessionId o usuarioId es requerido' },
-        { status: 400 }
-      )
-    }
-
-    const whereClause = usuarioId
-      ? { usuarioId: parseInt(usuarioId) }
-      : { sessionId, usuarioId: null }
+    const actor = await identity(queryClaims(request))
+    const whereClause = cartOwner(actor)
 
     await prisma.carritoItem.deleteMany({
       where: whereClause
     })
     return NextResponse.json({ message: 'Carrito vaciado' })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('Error al vaciar carrito:', error)
     return NextResponse.json(
       { error: 'Error al vaciar el carrito' },

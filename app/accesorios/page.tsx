@@ -25,8 +25,7 @@ export default function AccesoriosPage() {
 
   // Inicializar sessionId
   useEffect(() => {
-    const id = getSessionId()
-    setSessionId(id)
+    getSessionId().then(setSessionId).catch(error => console.error('Error al iniciar carrito:', error))
   }, [])
 
   // Cargar productos (filtrados por categoría "accesorios")

@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import ReservaClock from './ReservaClock'
+import type { ReservationTiming } from '@/lib/reserva-policy'
 import Image from 'next/image'
 import Spinner from './Spinner'
 import Alert from './Alert'
@@ -24,6 +26,7 @@ interface Producto {
   imagenUrl: string | null
   imagenes?: ProductoImagen[]
   estado?: string
+  reservaTiempo?: ReservationTiming | null
   reservadoEn?: Date | null
   compradorInfo?: string | null
   reservaPausada?: boolean
@@ -36,93 +39,33 @@ interface ProductoModalProps {
   onClose: () => void
 }
 
-export default function ProductoModal({ producto, isOpen, onClose }: ProductoModalProps) {
+export default function ProductoModal({ producto: initialProduct, isOpen, onClose }: ProductoModalProps) {
+  const [producto, setProducto] = useState(initialProduct)
+  useEffect(() => {
+    setProducto(initialProduct)
+    if (!isOpen) return
+    const controller = new AbortController()
+    const refresh = () => fetch(`/api/productos/${initialProduct.id}`, { cache: 'no-store', signal: controller.signal }).then(async r => { if (r.ok) setProducto(await r.json()) }).catch(() => {})
+    void refresh()
+    const timer = setInterval(refresh, 10000)
+    return () => { controller.abort(); clearInterval(timer) }
+  }, [initialProduct, isOpen])
   const [imagenActual, setImagenActual] = useState(0)
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
   const [agregando, setAgregando] = useState(false)
   const [imagenesCargadas, setImagenesCargadas] = useState(false)
-  const [tiempoRestante, setTiempoRestante] = useState<string>('')
   const [fullscreen, setFullscreen] = useState(false)
   const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'info' | 'success' | 'error' | 'warning'; title?: string } | null>(null)
-  const [expiracionNotificada, setExpiracionNotificada] = useState(false)
   const [yaEnCarrito, setYaEnCarrito] = useState(false)
 
   // Distancia mínima para considerar un swipe
   const minSwipeDistance = 50
 
-  // Calcular tiempo restante para productos reservados
-  useEffect(() => {
-    if (producto.estado === 'reservado' && producto.reservadoEn) {
-      const calcularTiempo = () => {
-        // Si está pausado, mostrar mensaje y NO actualizar
-        if (producto.reservaPausada) {
-          setTiempoRestante('⏸️ PAUSADO POR ADMIN')
-          return
-        }
-
-        const ahora = new Date()
-        const reserva = new Date(producto.reservadoEn!)
-        const horaReserva = reserva.getHours()
-        
-        // Calcular expiración con lógica inteligente (30 min, 10:00-23:00)
-        let expira = new Date(reserva)
-        
-        // Caso especial: 22:XX → 30 minutos normales
-        if (horaReserva === 22) {
-          expira = new Date(reserva.getTime() + 30 * 60 * 1000)
-        }
-        // Madrugada/noche (23:00 - 10:00) → Empieza a contar desde las 10:00
-        else if (horaReserva >= 23 || horaReserva < 10) {
-          if (horaReserva >= 23) {
-            expira.setDate(expira.getDate() + 1)
-          }
-          expira.setHours(10, 30, 0, 0)
-        }
-        // Horario normal (10:00 - 21:59) → 30 minutos
-        else {
-          expira = new Date(reserva.getTime() + 30 * 60 * 1000)
-        }
-        
-        const diferencia = expira.getTime() - ahora.getTime()
-        
-        if (diferencia <= 0) {
-          setTiempoRestante('⏰ Reserva expirada')
-          
-          // Llamar API para notificar expiración (solo una vez)
-          if (!expiracionNotificada) {
-            setExpiracionNotificada(true)
-            fetch('/api/ventas/expirar', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ productoId: producto.id })
-            }).catch(error => console.error('Error notificando expiración:', error))
-          }
-          return
-        }
-        
-        const horas = Math.floor(diferencia / (1000 * 60 * 60))
-        const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60))
-        const segundos = Math.floor((diferencia % (1000 * 60)) / 1000)
-        
-        if (horas > 0) {
-          setTiempoRestante(`⏱️ ${horas}h ${minutos}m ${segundos}s restantes`)
-        } else {
-          setTiempoRestante(`⏱️ ${minutos}m ${segundos}s restantes`)
-        }
-      }
-      
-      calcularTiempo()
-      const interval = setInterval(calcularTiempo, 1000)
-      return () => clearInterval(interval)
-    }
-  }, [producto.estado, producto.reservadoEn, producto.reservaPausada, producto.id, expiracionNotificada])
-
   // Reset carga de imágenes al cambiar producto
   useEffect(() => {
     setImagenesCargadas(false)
     setImagenActual(0)
-    setExpiracionNotificada(false) // Reset notificación al cambiar producto
     setYaEnCarrito(false) // Reset estado del carrito
   }, [producto.id])
 
@@ -130,7 +73,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
   useEffect(() => {
     const verificarEnCarrito = async () => {
       try {
-        const sessionId = getSessionId()
+        const sessionId = await getSessionId()
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         
@@ -190,7 +133,7 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
     setAgregando(true)
 
     try {
-      const sessionId = getSessionId()
+      const sessionId = await getSessionId()
       
       // Verificar si el usuario está logueado
       const supabase = createClient()
@@ -399,9 +342,9 @@ export default function ProductoModal({ producto, isOpen, onClose }: ProductoMod
                   <div className="text-xl font-bold mb-2 font-title uppercase" style={{ color: '#5E18EB' }}>
                     ⏱️ Producto Reservado
                   </div>
-                  {tiempoRestante && (
+                  {producto.estado === 'reservado' && (
                     <div className="text-lg font-semibold mb-2 font-body text-gray-700">
-                      {tiempoRestante}
+                      <ReservaClock timing={producto.reservaTiempo} />
                     </div>
                   )}
                   <p className="text-sm font-body text-gray-600">

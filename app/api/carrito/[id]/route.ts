@@ -1,3 +1,4 @@
+import { identity, cartOwner, queryClaims, accessResponse, publicProduct, ownsReservation } from '@/lib/api-identity'
 import { NextResponse } from 'next/server'
 import {prisma} from '@/lib/prisma'
 
@@ -8,10 +9,12 @@ export async function PUT(
 ) {
   try {
     const { id: idStr } = await params
-    const id = parseInt(idStr)
-    const { cantidad } = await request.json()
+    const id = Number(idStr)
+    if (!Number.isSafeInteger(id) || id <= 0) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+    const { cantidad, usuarioId, sessionId } = await request.json()
+    const actor = await identity({ ...queryClaims(request), ...(usuarioId != null ? { usuarioId } : {}), ...(sessionId != null ? { sessionId } : {}) })
 
-    if (!cantidad || cantidad < 1) {
+    if (!Number.isSafeInteger(cantidad) || cantidad < 1) {
       return NextResponse.json(
         { error: 'Cantidad debe ser mayor a 0' },
         { status: 400 }
@@ -19,8 +22,8 @@ export async function PUT(
     }
 
     // Verificar que el item existe
-    const item = await prisma.carritoItem.findUnique({
-      where: { id },
+    const item = await prisma.carritoItem.findFirst({
+      where: { id, ...cartOwner(actor) },
       include: { producto: true }
     })
 
@@ -41,7 +44,7 @@ export async function PUT(
 
     // Actualizar cantidad
     const itemActualizado = await prisma.carritoItem.update({
-      where: { id },
+      where: { id, ...cartOwner(actor) },
       data: { cantidad },
       include: {
         producto: {
@@ -54,8 +57,13 @@ export async function PUT(
       }
     })
 
-    return NextResponse.json(itemActualizado)
+    return NextResponse.json({
+      ...itemActualizado,
+      producto: { ...publicProduct(itemActualizado.producto), reservadoPorMi: ownsReservation(actor, itemActualizado.producto) },
+    })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('Error al actualizar item del carrito:', error)
     return NextResponse.json(
       { error: 'Error al actualizar el item' },
@@ -71,20 +79,13 @@ export async function DELETE(
 ) {
   try {
     const { id: idStr } = await params
-    const id = parseInt(idStr)
-    const { searchParams } = new URL(request.url)
-    const sessionId = searchParams.get('sessionId')
-
-    if (!sessionId) {
-      return NextResponse.json(
-        { error: 'sessionId es requerido' },
-        { status: 400 }
-      )
-    }
+    const id = Number(idStr)
+    if (!Number.isSafeInteger(id) || id <= 0) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+    const actor = await identity(queryClaims(request))
 
     // Verificar que el item pertenece a esta sesión
     const item = await prisma.carritoItem.findFirst({
-      where: { id, sessionId }
+      where: { id, ...cartOwner(actor) }
     })
 
     if (!item) {
@@ -95,11 +96,13 @@ export async function DELETE(
     }
 
     await prisma.carritoItem.delete({
-      where: { id }
+      where: { id, ...cartOwner(actor) }
     })
 
     return NextResponse.json({ message: 'Item eliminado del carrito' })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('Error al eliminar item del carrito:', error)
     return NextResponse.json(
       { error: 'Error al eliminar el item' },

@@ -1,6 +1,7 @@
+import { withReservationTiming } from '@/lib/reserva-policy'
+import { canReadSales, publicProduct, accessResponse, requireAdmin } from '@/lib/api-identity'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
 
 // GET /api/productos/[id] - Obtener un producto por ID
 export async function GET(
@@ -9,6 +10,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    const salesAccess = await canReadSales()
     const producto = await prisma.producto.findUnique({
       where: { id: parseInt(id) },
       include: {
@@ -25,8 +27,10 @@ export async function GET(
       )
     }
 
-    return NextResponse.json(producto)
+    return NextResponse.json(salesAccess ? withReservationTiming(producto) : publicProduct(producto), { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     return NextResponse.json(
       { error: 'Error al obtener producto' },
       { status: 500 }
@@ -40,15 +44,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verificar autenticación
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    }
+    await requireAdmin()
 
     const { id } = await params
     const body = await request.json()
@@ -83,8 +79,10 @@ export async function PUT(
       }
     })
 
-    return NextResponse.json(producto)
+    return NextResponse.json(publicProduct(producto))
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     return NextResponse.json(
       { error: 'Error al actualizar producto' },
       { status: 500 }
@@ -98,15 +96,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verificar autenticación
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    }
+    await requireAdmin()
 
     const { id } = await params
     await prisma.producto.delete({
@@ -115,6 +105,8 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Producto eliminado' })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     return NextResponse.json(
       { error: 'Error al eliminar producto' },
       { status: 500 }

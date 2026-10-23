@@ -1,7 +1,9 @@
-import { type NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { updateSession } from './lib/supabase/middleware'
 
 export async function middleware(request: NextRequest) {
+  // This endpoint has its own constant-time bearer-secret authentication.
+  if (request.nextUrl.pathname === '/api/cron/reservas') return NextResponse.next()
   return await updateSession(request)
 }
 

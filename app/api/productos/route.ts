@@ -1,6 +1,7 @@
+import { withReservationTiming } from '@/lib/reserva-policy'
+import { canReadSales, publicProduct, accessResponse, requireAdmin } from '@/lib/api-identity'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
 
 // GET /api/productos - Listar todos los productos
 export async function GET() {
@@ -9,6 +10,7 @@ export async function GET() {
   try {
     console.log('📊 [GET /api/productos] Conectando a Prisma...')
     
+    const salesAccess = await canReadSales()
     const productos = await prisma.producto.findMany({
       include: {
         imagenes: {
@@ -21,12 +23,14 @@ export async function GET() {
     console.log(`✅ [GET /api/productos] ${productos.length} productos encontrados`)
     
     // Agregar headers de caché para mejorar rendimiento
-    return NextResponse.json(productos, {
+    return NextResponse.json(salesAccess ? productos.map(withReservationTiming) : productos.map(publicProduct), {
       headers: {
-        'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30'
+        'Cache-Control': 'private, no-store'
       }
     })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('❌ [GET /api/productos] Error:', error)
     console.error('❌ [GET /api/productos] Error stack:', error instanceof Error ? error.stack : 'No stack')
     console.error('❌ [GET /api/productos] Error message:', error instanceof Error ? error.message : error)
@@ -44,15 +48,7 @@ export async function GET() {
 // POST /api/productos - Crear nuevo producto
 export async function POST(request: Request) {
   try {
-    // Verificar autenticación
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    }
+    await requireAdmin()
 
     const body = await request.json()
     const { nombre, descripcion, precio, stock, imagenUrl, imagenes, categoria } = body
@@ -88,6 +84,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(producto, { status: 201 })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('Error al crear producto:', error)
     return NextResponse.json(
       { error: 'Error al crear producto' },

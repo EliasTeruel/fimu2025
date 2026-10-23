@@ -1,3 +1,4 @@
+import { verifiedUser, AccessError, accessResponse } from '@/lib/api-identity'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -42,6 +43,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(usuario, { status: 201 })
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('❌ Error al crear usuario:', error)
     return NextResponse.json(
       { error: 'Error al crear usuario', details: error instanceof Error ? error.message : 'Unknown error' },
@@ -53,7 +56,10 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
+    const user = await verifiedUser()
+    if (!user) throw new AccessError(401, 'Debes iniciar sesión')
     const supabaseId = searchParams.get('supabaseId')
+    if (supabaseId !== user.id) throw new AccessError(403, 'No puedes acceder a otro usuario')
 
     if (!supabaseId) {
       return NextResponse.json(
@@ -75,6 +81,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json(usuario)
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('❌ Error al obtener usuario:', error)
     return NextResponse.json(
       { error: 'Error al obtener usuario', details: error instanceof Error ? error.message : 'Unknown error' },

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import ReservaConfig from '@/app/components/ReservaConfig'
 import Image from 'next/image'
 import { CldUploadWidget } from 'next-cloudinary'
 import Alert from '../components/Alert'
@@ -454,7 +455,7 @@ export default function AdminPage() {
             onClick={() => setMostrarConfig(!mostrarConfig)}
             className="px-4 py-2 text-white font-medium hover:bg-gray-700 transition-colors bg-black font-body uppercase tracking-wide"
           >
-            ⚙️ {mostrarConfig ? 'Ocultar' : 'Configurar'} Categorías
+            ⚙️ {mostrarConfig ? 'Ocultar configuración' : 'Configuración'}
           </button>
         </div>
 
@@ -497,6 +498,7 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
+            <ReservaConfig />
           </div>
         )}
 

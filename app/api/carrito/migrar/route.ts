@@ -1,76 +1,41 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { identity, AccessError, accessResponse } from '@/lib/api-identity'
 
-// POST - Migrar carrito de sessionId a usuarioId cuando el usuario se loguea
 export async function POST(request: Request) {
   try {
     const { sessionId, usuarioId } = await request.json()
-
-    if (!sessionId || !usuarioId) {
-      return NextResponse.json(
-        { error: 'sessionId y usuarioId son requeridos' },
-        { status: 400 }
-      )
-    }
-
-    const usuarioIdInt = parseInt(usuarioId)
-
-    // 1. Obtener items del carrito de invitado (sessionId)
-    const itemsInvitado = await prisma.carritoItem.findMany({
-      where: { 
-        sessionId,
-        usuarioId: null // Solo items sin usuario asignado
+    const actor = await identity({ sessionId, usuarioId }, true)
+    if (!actor.sessionId) throw new AccessError(401, 'Falta la sesión de invitado')
+    const guest = { sessionId: actor.sessionId, usuarioId: null }
+    const result = await prisma.$transaction(async tx => {
+      const items = await tx.carritoItem.findMany({ where: guest })
+      const existing = await tx.carritoItem.findMany({ where: { usuarioId: actor.usuarioId! } })
+      const products = new Set(existing.map(item => item.productoId))
+      let itemsMigrados = 0
+      let itemsActualizados = 0
+      for (const item of items) {
+        if (products.has(item.productoId)) {
+          await tx.carritoItem.deleteMany({ where: { id: item.id, ...guest } })
+          itemsActualizados++
+        } else {
+          await tx.carritoItem.updateMany({
+            where: { id: item.id, ...guest },
+            data: { usuarioId: actor.usuarioId!, sessionId: null },
+          })
+          products.add(item.productoId)
+          itemsMigrados++
+        }
       }
-    })
-
-    if (itemsInvitado.length === 0) {
-      return NextResponse.json({ 
-        message: 'No hay items para migrar',
-        itemsMigrados: 0 
+      // Transfer only reservations proven to belong to this browser.
+      await tx.producto.updateMany({
+        where: { estado: 'reservado', reservadoPorSessionId: actor.sessionId, reservadoPorUsuarioId: null },
+        data: { reservadoPorSessionId: null, reservadoPorUsuarioId: actor.usuarioId!, reservaVersion: { increment: 1 } },
       })
-    }
-
-    // 2. Obtener items del carrito del usuario logueado
-    const itemsUsuario = await prisma.carritoItem.findMany({
-      where: { usuarioId: usuarioIdInt }
-    })
-
-    const productosUsuario = new Set(itemsUsuario.map(item => item.productoId))
-    let itemsMigrados = 0
-    let itemsActualizados = 0
-
-    // 3. Migrar cada item
-    for (const item of itemsInvitado) {
-      if (productosUsuario.has(item.productoId)) {
-        // El producto ya existe en el carrito del usuario - eliminar el duplicado del invitado
-        await prisma.carritoItem.delete({
-          where: { id: item.id }
-        })
-        itemsActualizados++
-      } else {
-        // Producto nuevo - asignar al usuario y limpiar sessionId
-        await prisma.carritoItem.update({
-          where: { id: item.id },
-          data: { 
-            usuarioId: usuarioIdInt,
-            sessionId: null // Limpiar sessionId al migrar
-          }
-        })
-        itemsMigrados++
-      }
-    }
-
-    return NextResponse.json({ 
-      message: 'Carrito migrado exitosamente',
-      itemsMigrados,
-      itemsActualizados,
-      totalItems: itemsMigrados + itemsActualizados
-    })
+      return { itemsMigrados, itemsActualizados, totalItems: itemsMigrados + itemsActualizados }
+    }, { isolationLevel: 'Serializable' })
+    return NextResponse.json({ message: 'Carrito migrado exitosamente', ...result })
   } catch (error) {
-    console.error('Error al migrar carrito:', error)
-    return NextResponse.json(
-      { error: 'Error al migrar el carrito' },
-      { status: 500 }
-    )
+    return accessResponse(error) ?? NextResponse.json({ error: 'Error al migrar el carrito; vuelve a intentar' }, { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from "react"
+import ReservaPolicySummary from '../components/ReservaPolicySummary'
 import Navbar from "../components/Navbar"
 
 interface FAQ {
@@ -14,11 +15,11 @@ export default function PreguntasFrecuentesPage() {
   const faqs: FAQ[] = [
     {
       pregunta: "¿Cómo puedo comprar?",
-      respuesta: "Agrega productos al carrito, reserva tu compra y coordina el pago por Instagram o WhatsApp. Tendrás 30 minutos para confirmar la compra después de reservar."
+      respuesta: "Agrega productos al carrito, reserva tu compra y coordina el pago por Instagram o WhatsApp. El carrito te mostrará el tiempo disponible para confirmar cada reserva."
     },
     {
       pregunta: "¿Cuánto tiempo tengo para confirmar mi reserva?",
-      respuesta: "Las reservas duran 30 minutos. Si no confirmas el pago en ese tiempo, los productos vuelven a estar disponibles automáticamente. Las reservas hechas fuera del horario 10:00-23:00 empiezan a contar desde las 10:00 del día siguiente."
+      respuesta: "Consulta las condiciones vigentes arriba y el reloj de cada producto en el carrito. Durante la pausa diaria se conservan los minutos pendientes y se retoman al finalizar. Al agotar el plazo se libera el producto."
     },
     {
       pregunta: "¿Hacen envíos?",
@@ -46,7 +47,7 @@ export default function PreguntasFrecuentesPage() {
     },
     {
       pregunta: "¿Puedo reservar un producto sin comprarlo?",
-      respuesta: "Las reservas son para concretar la compra. Si reservas y no confirmas el pago, el producto vuelve a estar disponible automáticamente después de 30 minutos."
+      respuesta: "Las reservas son para concretar la compra. Si reservas y no confirmas el pago, el producto vuelve a estar disponible automáticamente al vencer su plazo efectivo."
     },
     {
       pregunta: "¿Qué métodos de pago aceptan?",
@@ -58,7 +59,7 @@ export default function PreguntasFrecuentesPage() {
     },
     {
       pregunta: "¿Qué pasa si el producto que me gusta está reservado?",
-      respuesta: "Si un producto está reservado, significa que alguien más lo está por comprar. Si no confirma la compra en 30 minutos, el producto vuelve a estar disponible automáticamente."
+      respuesta: "Si un producto está reservado, significa que alguien más lo está por comprar. Si vence el plazo de su reserva sin confirmar la compra, el producto vuelve a estar disponible automáticamente."
     }
   ]
 
@@ -74,6 +75,7 @@ export default function PreguntasFrecuentesPage() {
         <h1 className="text-3xl font-bold mb-8 text-center text-black uppercase tracking-wider border-b-4 border-black pb-4 font-title">
           Preguntas Frecuentes
         </h1>
+        <ReservaPolicySummary />
 
         <div className="space-y-4">
           {faqs.map((faq, index) => (

@@ -1,5 +1,6 @@
 'use client'
 
+import ReservaPolicySummary from '../components/ReservaPolicySummary'
 import Navbar from "../components/Navbar"
 
 export default function ComoComprarPage() {
@@ -11,6 +12,7 @@ export default function ComoComprarPage() {
         <h1 className="text-3xl font-bold mb-8 text-center text-black uppercase tracking-wider border-b-4 border-black pb-4 font-title">
           ¿Cómo Comprar?
         </h1>
+        <ReservaPolicySummary />
 
         <div className="space-y-8">
           {/* Paso 1 */}
@@ -67,11 +69,11 @@ export default function ComoComprarPage() {
                   Reserva tu Compra
                 </h2>
                 <p className="font-body text-gray-700">
-                  Haz click en &ldquo;Reservar Compra&rdquo;. Los productos quedarán reservados por 30 minutos para que puedas coordinar el pago.
+                  Haz click en &ldquo;Reservar Compra&rdquo;. Consulta arriba la duración y las pausas vigentes para coordinar el pago. El carrito muestra el plazo de cada producto.
                 </p>
                 <div className="mt-3 p-3 bg-gray-100 border-2 border-black">
                   <p className="text-sm font-body text-black font-semibold">
-                    ⏱️ Importante: Las reservas vencen después de 30 minutos si no se confirma el pago.
+                    ⏱️ Importante: Las reservas vencen al agotar su tiempo efectivo si no se confirma el pago. Durante las pausas el saldo se conserva.
                   </p>
                 </div>
               </div>

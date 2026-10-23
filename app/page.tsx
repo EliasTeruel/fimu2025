@@ -35,8 +35,7 @@ export default function Home() {
 
   // Inicializar sessionId al montar el componente
   useEffect(() => {
-    const id = getSessionId()
-    setSessionId(id)
+    getSessionId().then(setSessionId).catch(error => console.error('Error al iniciar carrito:', error))
   }, [])
 
   // Cargar categorías visibles

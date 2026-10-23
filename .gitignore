@@ -12,9 +12,11 @@
 
 # testing
 /coverage
+/.backups/
 
 # next.js
 /.next/
+/.next-*/
 /out/
 
 # production

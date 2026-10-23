@@ -9,7 +9,8 @@ import Alert from '../components/Alert'
 import Confirm from '../components/Confirm'
 import ContactoModal, { ContactoData } from '../components/ContactoModal'
 import LoadingScreen from '../components/LoadingScreen'
-import { calcularTiempoRestante, obtenerMensajeExpiracion } from '@/lib/reserva-utils'
+import ReservaClock from '@/app/components/ReservaClock'
+import type { ReservationTiming } from '@/lib/reserva-policy'
 import { getSessionId } from '@/lib/session'
 import { CloudinaryPresets } from '@/lib/cloudinary-utils'
 import Navbar from '../components/Navbar'
@@ -33,9 +34,11 @@ interface Producto {
   imagenUrl?: string
   imagenes: ProductoImagen[]
   estado?: string                    // 'disponible' | 'reservado' | 'vendido'
+  reservaTiempo?: ReservationTiming | null
   reservadoEn?: Date | null          // Fecha/hora cuando se reservó
   reservaPausada?: boolean           // Si el admin pausó la reserva
   pausadoEn?: Date | null
+  reservadoPorMi?: boolean
   compradorInfo?: string | null      // "Nombre Apellido | Tel: XXX | red: @user"
   reservadoPorSessionId?: string | null   // 🔑 Session ID de quien reservó
   reservadoPorUsuarioId?: number | null   // 🔑 User ID de quien reservó
@@ -63,7 +66,6 @@ export default function CarritoPage() {
   const [procesandoPago, setProcesandoPago] = useState(false)
   const [vaciandoCarrito, setVaciandoCarrito] = useState(false)
   const [eliminandoItem, setEliminandoItem] = useState<number | null>(null)
-  const [tiemposRestantes, setTiemposRestantes] = useState<Record<number, string>>({})
   
   // 🔑 sessionId: Identificador único para usuarios invitados (no logueados)
   const [sessionId, setSessionId] = useState<string>('')
@@ -87,45 +89,12 @@ export default function CarritoPage() {
   // Es el corazón de la lógica para diferenciar "mis productos" vs "productos de otros"
   // ============================================================================
   const esDeOtroUsuario = useCallback((item: CarritoItem): boolean => {
-    // Si el producto NO está reservado, entonces NO es de otro usuario
-    // (está disponible para todos)
-    if (item.producto.estado !== 'reservado') return false
-    
-    // -------- MÉTODO 1: Comparar por usuarioId (MÁS CONFIABLE) --------
-    // Comparar con el usuarioId que está en el PRODUCTO (quién lo reservó)
-    if (miUsuarioId && item.producto.reservadoPorUsuarioId) {
-      const esDiferente = item.producto.reservadoPorUsuarioId !== miUsuarioId
-      console.log(`🔍 Método 1 (usuarioId del PRODUCTO): producto.reservadoPorUsuarioId=${item.producto.reservadoPorUsuarioId}, miUsuarioId=${miUsuarioId}, esDeOtro=${esDiferente}`)
-      return esDiferente
-    }
-    
-    // -------- MÉTODO 2: Comparar por sessionId (PARA INVITADOS) --------
-    // Comparar con el sessionId que está en el PRODUCTO (quién lo reservó)
-    if (!miUsuarioId && sessionId && item.producto.reservadoPorSessionId) {
-      const esDiferente = item.producto.reservadoPorSessionId !== sessionId
-      console.log(`🔍 Método 2 (sessionId del PRODUCTO): producto.reservadoPorSessionId=${item.producto.reservadoPorSessionId}, miSessionId=${sessionId}, esDeOtro=${esDiferente}`)
-      return esDiferente
-    }
-    
-    // -------- MÉTODO 3: Fallback - Comparar por nombre en compradorInfo --------
-    // Si no tenemos los nuevos campos, usar el nombre del compradorInfo
-    if (datosUsuario) {
-      const nombreEnCompradorInfo = item.producto.compradorInfo?.split(' | ')[0] || ''
-      const miNombreCompleto = `${datosUsuario.nombre} ${datosUsuario.apellido}`.trim()
-      const esDiferente = nombreEnCompradorInfo !== miNombreCompleto && nombreEnCompradorInfo !== ''
-      console.log(`🔍 Método 3 (nombre): compradorInfo="${nombreEnCompradorInfo}", miNombre="${miNombreCompleto}", esDeOtro=${esDiferente}`)
-      return esDiferente
-    }
-    
-    // Si no hay forma de verificar, asumir que NO es mío (mostrar como de otro)
-    console.log('🔍 Sin método de comparación - asumiendo que es de otro usuario')
-    return true
-  }, [miUsuarioId, sessionId, datosUsuario])
+    return item.producto.estado === 'reservado' && item.producto.reservadoPorMi !== true
+  }, [])
 
   // Inicializar sessionId
   useEffect(() => {
-    const id = getSessionId()
-    setSessionId(id)
+    getSessionId().then(setSessionId).catch(error => console.error('Error al iniciar carrito:', error))
   }, [])
 
   // Verificar si el usuario está logueado y obtener sus datos
@@ -185,69 +154,6 @@ export default function CarritoPage() {
     verificarUsuario()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, sessionId])
-
-  // ============================================================================
-  // useEffect: Calcular tiempo restante de reservas
-  // ============================================================================
-  // Este efecto calcula y actualiza el cronómetro cada segundo
-  // SOLO para productos que YO reservé (no muestra cronómetro de otros usuarios)
-  // ============================================================================
-  useEffect(() => {
-    const calcularTiempos = () => {
-      const nuevos: Record<number, string> = {}
-      
-      items.forEach(item => {
-        // Solo procesar productos reservados con fecha de reserva
-        if (item.producto.estado === 'reservado' && item.producto.reservadoEn) {
-          
-          // 🔑 CLAVE: Usar esDeOtroUsuario para filtrar
-          // Si el producto fue reservado por OTRO usuario, NO mostrar cronómetro
-          if (esDeOtroUsuario(item)) {
-            console.log(`⏭️ Saltando cronómetro de item ${item.id} - es de otro usuario`)
-            return // No calcular cronómetro para productos reservados por otros
-          }
-          
-          console.log(`⏱️ Calculando cronómetro para item ${item.id} - es MÍO`)
-          
-          // Si está pausado por admin, mostrar mensaje especial
-          if (item.producto.reservaPausada) {
-            nuevos[item.id] = '⏸️ PAUSADO POR ADMIN'
-            return
-          }
-
-          const reserva = new Date(item.producto.reservadoEn)
-          
-          // Calcular expiración usando la misma lógica inteligente que el backend
-          const expira = new Date(reserva)
-          const horaReserva = reserva.getHours()
-          
-          // Caso especial: 22:XX → 30 minutos normales
-          if (horaReserva === 22) {
-            expira.setTime(reserva.getTime() + 30 * 60 * 1000)
-          }
-          // Madrugada/noche (23:00 - 10:00) → Empieza a contar desde las 10:00
-          else if (horaReserva >= 23 || horaReserva < 10) {
-            if (horaReserva >= 23) {
-              expira.setDate(expira.getDate() + 1)
-            }
-            expira.setHours(10, 30, 0, 0)
-          }
-          // Horario normal (10:00 - 21:59) → 30 minutos
-          else {
-            expira.setTime(reserva.getTime() + 30 * 60 * 1000)
-          }
-          
-          // Usar función de la librería para formatear (item.id es único por CarritoItem)
-          nuevos[item.id] = calcularTiempoRestante(reserva, expira)
-        }
-      })
-      setTiemposRestantes(nuevos)
-    }
-    
-    calcularTiempos()
-    const interval = setInterval(calcularTiempos, 1000)
-    return () => clearInterval(interval)
-  }, [items, esDeOtroUsuario]) // Agregar esDeOtroUsuario a las dependencias
 
   const cargarCarrito = useCallback(async () => {
     if (!sessionId) {
@@ -545,11 +451,11 @@ export default function CarritoPage() {
       */
 
       const mensajeExtra = productosYaReservados.length > 0
-        ? `\n\n(${productosYaReservados.length} producto(s) ya estaban reservados - tiempo extendido)`
+        ? `\n\n(${productosYaReservados.length} producto(s) ya estaban reservados; consulta el plazo individual en el carrito)`
         : ''
 
       // Obtener mensaje de expiración inteligente
-      const mensajeExpiracion = obtenerMensajeExpiracion(new Date())
+      const mensajeExpiracion = 'Consulta el tiempo restante y las pausas de cada producto en tu carrito. Cada reserva conserva las condiciones con las que fue creada.'
 
       setAlertConfig({ 
         show: true, 
@@ -674,9 +580,9 @@ export default function CarritoPage() {
                       </p>
                       
                       {/* Mostrar cronómetro (calculado en useEffect) */}
-                      {tiemposRestantes[item.id] && (
+                      {item.producto.estado === 'reservado' && !esDeOtroUsuario(item) && (
                         <p className="font-semibold text-lg mb-2 font-body text-gray-700">
-                          {tiemposRestantes[item.id]}
+                          <ReservaClock timing={item.producto.reservaTiempo} />
                         </p>
                       )}
                       

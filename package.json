@@ -8,11 +8,20 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "test:security": "node --test tests/authorization.test.cjs",
+    "verify:env": "node scripts/verify-environment.cjs",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "test:reservas": "node --test tests/reservas*.test.cjs",
+    "reservas:worker": "node scripts/reservas-worker.cjs",
+    "reservas:check": "node scripts/check-reservas-migration.cjs",
+    "reservas:migrate": "node scripts/apply-reservas-migration.cjs --apply",
+    "reservas:cron:status": "node scripts/configure-reservas-cron.cjs --status",
+    "reservas:cron:activate": "node scripts/configure-reservas-cron.cjs --activate"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
     "@prisma/client": "^6.19.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.81.1",
@@ -26,6 +35,7 @@
     "twilio": "^5.10.6"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

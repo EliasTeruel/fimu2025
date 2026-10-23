@@ -1,6 +1,6 @@
+import { requireAdmin, accessResponse } from '@/lib/api-identity'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
 
 // GET /api/configuracion/categorias - Obtener configuración de categorías
 export async function GET() {
@@ -11,6 +11,8 @@ export async function GET() {
     
     return NextResponse.json(categorias)
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('Error al obtener configuración de categorías:', error)
     return NextResponse.json(
       { error: 'Error al obtener configuración' },
@@ -22,15 +24,7 @@ export async function GET() {
 // PUT /api/configuracion/categorias - Actualizar visibilidad de categoría
 export async function PUT(request: Request) {
   try {
-    // Verificar autenticación
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    }
+    await requireAdmin()
 
     const body = await request.json()
     const { categoria, visible } = body
@@ -49,6 +43,8 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(config)
   } catch (error) {
+    const denied = accessResponse(error)
+    if (denied) return denied
     console.error('Error al actualizar configuración:', error)
     return NextResponse.json(
       { error: 'Error al actualizar configuración' },

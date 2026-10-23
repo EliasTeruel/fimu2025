@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Spinner from '../../components/Spinner'
 
+import ReservaClock from '@/app/components/ReservaClock'
+import type { ReservationTiming } from '@/lib/reserva-policy'
 import Image from 'next/image'
 import Alert from '../../components/Alert'
 import Confirm from '../../components/Confirm'
@@ -26,6 +28,7 @@ interface Producto {
   imagenUrl: string | null
   imagenes?: ProductoImagen[]
   estado: string
+  reservaTiempo?: ReservationTiming | null
   reservadoEn: Date | null
   compradorInfo: string | null
   reservaPausada?: boolean
@@ -55,6 +58,8 @@ export default function VentasAdminPage() {
   const [confirmConfig, setConfirmConfig] = useState<{ show: boolean; message: string; onConfirm: () => void; title?: string } | null>(null)
 
   useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined
+    let cancelled = false
     async function verificarAdmin() {
       const {
         data: { user },
@@ -108,18 +113,17 @@ export default function VentasAdminPage() {
         return
       }
 
+      if (cancelled) return
       // Si es admin, cargar datos
       cargarProductos()
       cargarProductosEnCarrito()
       verificarReservasExpiradas()
       // Verificar reservas expiradas cada minuto
-      const interval = setInterval(() => {
-        verificarReservasExpiradas()
-      }, 60000)
-      return () => clearInterval(interval)
+      timer = setInterval(() => { void cargarProductos() }, 10000)
     }
 
     verificarAdmin()
+    return () => { cancelled = true; if (timer) clearInterval(timer) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, supabase])
 
@@ -139,7 +143,7 @@ export default function VentasAdminPage() {
 
   const cargarProductosEnCarrito = async () => {
     try {
-      const res = await fetch('/api/carrito')
+      const res = await fetch('/api/carrito?scope=all')
       if (res.ok) {
         const data = await res.json()
         setProductosEnCarrito(Array.isArray(data) ? data : [])
@@ -157,6 +161,21 @@ export default function VentasAdminPage() {
     } catch (error) {
       console.error('Error al verificar reservas expiradas:', error)
     }
+  }
+
+  const regularizarReserva = (productoId: number) => {
+    setConfirmConfig({ show: true,
+      message: 'Esta reserva no tiene una política registrada. ¿Asignarle desde ahora el plazo completo de la configuración vigente? Su pausa manual se conservará. Revisa antes el acuerdo con el cliente.',
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        try {
+          const response = await fetch('/api/ventas/regularizar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productoId, confirmar: true }) })
+          const data = await response.json()
+          setAlertConfig({ show: true, message: data.message || data.error, type: response.ok ? 'success' : 'error' })
+          await cargarProductos()
+        } catch { setAlertConfig({ show: true, message: 'No se pudo regularizar la reserva', type: 'error' }) }
+      },
+    })
   }
 
   const confirmarVenta = async (productoId: number) => {
@@ -226,7 +245,7 @@ export default function VentasAdminPage() {
     setConfirmConfig({
       show: true,
       title: pausado ? '▶️ Reanudar cronómetro' : '⏸️ Pausar cronómetro',
-      message: `¿Deseas ${accion} el cronómetro de "${nombreProducto}"?`,
+      message: `¿Deseas ${accion} el cronómetro de "${nombreProducto}" y las reservas vigentes del mismo comprador que estén en el mismo estado de pausa?`,
       onConfirm: async () => {
         setConfirmConfig(null)
         setPausandoReserva(productoId)
@@ -241,7 +260,7 @@ export default function VentasAdminPage() {
             const data = await res.json()
             setAlertConfig({ 
               show: true, 
-              message: data.pausado ? '⏸️ Cronómetro pausado' : '▶️ Cronómetro reanudado', 
+              message: data.message,
               type: 'success' 
             })
             cargarProductos()
@@ -336,47 +355,6 @@ export default function VentasAdminPage() {
     if (imagenPrincipal) return imagenPrincipal.url
     if (producto.imagenes?.length) return producto.imagenes[0].url
     return producto.imagenUrl || '/placeholder.jpg'
-  }
-
-  const calcularTiempoRestante = (reservadoEn: Date | null, pausado?: boolean): string => {
-    if (!reservadoEn) return ''
-    
-    if (pausado) return '⏸️ PAUSADO'
-    
-    const ahora = new Date()
-    const reserva = new Date(reservadoEn)
-    const horaReserva = reserva.getHours()
-    
-    // Calcular expiración según la lógica inteligente
-    let expira = new Date(reserva)
-    
-    // Caso especial: 22:XX → 30 minutos normales
-    if (horaReserva === 22) {
-      expira = new Date(reserva.getTime() + 30 * 60 * 1000)
-    }
-    // Madrugada/noche (23:00 - 10:00) → Empieza a contar desde las 10:00
-    else if (horaReserva >= 23 || horaReserva < 10) {
-      if (horaReserva >= 23) {
-        expira.setDate(expira.getDate() + 1)
-      }
-      expira.setHours(10, 30, 0, 0) // 10:00 + 30 min = 10:30
-    }
-    // Horario normal (10:00 - 21:59) → 30 minutos
-    else {
-      expira = new Date(reserva.getTime() + 30 * 60 * 1000)
-    }
-    
-    const diferencia = expira.getTime() - ahora.getTime()
-    
-    if (diferencia <= 0) return '⏰ Expirado'
-    
-    const horas = Math.floor(diferencia / (1000 * 60 * 60))
-    const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60))
-    
-    if (horas > 0) {
-      return `⏱️ ${horas}h ${minutos}m restantes`
-    }
-    return `⏱️ ${minutos}m restantes`
   }
 
   const productosFiltrados = productos.filter(p => {
@@ -558,10 +536,11 @@ export default function VentasAdminPage() {
                     </div>
 
                     {/* Info de Reserva */}
-                    {producto.estado === 'reservado' && producto.reservadoEn && (
+                    {producto.estado === 'reservado' && (
                       <div className="mb-3 p-2 bg-gray-100 border-2 border-black">
                         <p className="text-sm font-semibold font-body text-black">
-                          {calcularTiempoRestante(producto.reservadoEn, producto.reservaPausada)}
+                          <ReservaClock timing={producto.reservaTiempo} />
+                          {producto.reservaTiempo?.pause === 'revision' && <button className="block underline mt-2" onClick={() => regularizarReserva(producto.id)}>Revisar y asignar nuevo plazo</button>}
                         </p>
                         {producto.compradorInfo && (
                           <p className="text-sm font-body text-gray-700">

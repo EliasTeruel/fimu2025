@@ -1,3 +1,4 @@
+import { reservationTiming } from '@/lib/reserva-policy'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
           precio: true,
           imagenUrl: true,
           estado: true,
+          reservaPolitica: true, reservaExpiraEn: true, reservaPausada: true, reservaSaldoMs: true,
           categoria: true,
           imagenes: {
             select: {
@@ -59,7 +61,10 @@ export async function GET(request: Request) {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       })
       .slice(skip, skip + limit)
-      .map(({ createdAt, ...producto }) => producto) // Remover createdAt del resultado
+      .map(({ createdAt, reservaPolitica, reservaExpiraEn, reservaPausada, reservaSaldoMs, ...producto }) => {
+        void createdAt
+        return { ...producto, reservaTiempo: reservationTiming({ ...producto, reservaPolitica, reservaExpiraEn, reservaPausada, reservaSaldoMs }) }
+      }) // Remover createdAt del resultado
     
     console.log('📊 [GET /api/productos/publico] Total encontrados:', productosRaw.length)
     console.log('📦 [GET /api/productos/publico] Productos paginados:', productos.length)
@@ -76,7 +81,7 @@ export async function GET(request: Request) {
       }
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60'
+        'Cache-Control': 'no-store'
       }
     })
   } catch (error) {

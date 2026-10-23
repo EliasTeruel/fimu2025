@@ -1,3 +1,5 @@
+> Para la actualización de reservas del 23/10/2026, seguir [ACTIVACION-RESERVAS-PASOS-FINALES.md](docs/ACTIVACION-RESERVAS-PASOS-FINALES.md). La base ya fue migrada: no ejecutar el `db push` ni recrear tablas de esta guía histórica.
+
 # 🚀 Guía de Deploy en Vercel
 
 Esta guía te ayudará a desplegar tu tienda online en Vercel de forma gratuita.

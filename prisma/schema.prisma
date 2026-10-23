@@ -22,6 +22,10 @@ model Producto {
   carrito                 CarritoItem[]
   categoria               String           @default("fimu") // fimu, perchero, etc.
   estado                  String           @default("disponible") // disponible, reservado, vendido
+  reservaPolitica         Json?            @map("reserva_politica")
+  reservaExpiraEn         DateTime?        @map("reserva_expira_en")
+  reservaSaldoMs          Int?             @map("reserva_saldo_ms")
+  reservaVersion          Int              @default(0) @map("reserva_version")
   reservadoEn             DateTime?        @map("reservado_en") // Timestamp cuando se dio click en Pagar
   compradorInfo           String?          @map("comprador_info") // Info del comprador (nombre, contacto, etc)
   reservaPausada          Boolean          @default(false) @map("reserva_pausada") // Admin puede pausar el cronómetro
@@ -36,6 +40,7 @@ model Producto {
   updatedAt               DateTime         @updatedAt
 
   @@index([estado]) // Índice para filtrar por estado
+  @@index([estado, reservaExpiraEn])
   @@index([createdAt]) // Índice para ordenar por fecha
   @@index([categoria]) // Índice para filtrar por categoría
   @@index([reservadoPorSessionId]) // Índice para búsquedas por sessionId
@@ -79,6 +84,7 @@ model CarritoItem {
 }
 
 model Usuario {
+  configuracionesReserva ConfiguracionReserva[]
   id                  Int            @id @default(autoincrement())
   email               String         @unique
   supabaseId          String?        @unique @map("supabase_id") // UUID de Supabase Auth
@@ -112,4 +118,19 @@ model ConfiguracionCategoria {
   @@index([categoria])
   @@index([visible])
   @@map("configuracion_categorias")
+}
+
+model ConfiguracionReserva {
+  id Int @id @default(1)
+  duracionMinutos Int @map("duracion_minutos")
+  pausaAutomaticaHabilitada Boolean @map("pausa_automatica_habilitada")
+  pausaDesdeMinuto Int @map("pausa_desde_minuto")
+  pausaHastaMinuto Int @map("pausa_hasta_minuto")
+  zonaHoraria String @map("zona_horaria")
+  revision Int @default(1)
+  actualizadoPorUsuarioId Int? @map("actualizado_por_usuario_id")
+  actualizadoPor Usuario? @relation(fields: [actualizadoPorUsuarioId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@map("configuracion_reservas")
 }
